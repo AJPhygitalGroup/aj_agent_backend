@@ -1,73 +1,75 @@
 """
 Viral Analyzer Agent - Analiza la estructura de contenido viral.
+Usa Anthropic API directamente con tool_use.
 """
 
-import asyncio
-
-from claude_agent_sdk import ClaudeAgentOptions, query
-
 from agents.base import BaseAgent
-from agents.tools import create_content_engine_tools
 
 
 class ViralAnalyzerAgent(BaseAgent):
     name = "viral_analyzer"
     description = "Analiza estructura, tono, música y guión de contenido viral"
+    max_turns = 20
 
-    async def run(self) -> None:
-        self.logger.info("Starting viral content analysis")
+    def _build_prompt(self) -> str:
+        return """Analiza la estructura de contenido viral en el nicho de A&J Phygital Group.
 
-        prompt = self.load_prompt()
-        tools_server = create_content_engine_tools()
+## Tu tarea:
+1. Usa `get_brand_guidelines` para entender el nicho de la empresa
+2. Usa `read_agent_output` con agent_name="trend_researcher" para leer las tendencias detectadas
+3. Usa `search_perplexity` para buscar contenido viral en cada plataforma:
+   - "most viral AI automation videos TikTok 2026"
+   - "viral Instagram reels artificial intelligence business"
+   - "top performing LinkedIn posts AI SaaS technology"
+   - "viral YouTube videos AI tutorials automation 2026"
+   - "Facebook viral posts about AI business tools"
 
-        analysis_prompt = f"""{prompt}
+4. Para cada contenido viral encontrado (mínimo 10), analiza:
+   - Hook/gancho: tipo (pregunta, estadística, controversia, storytelling), texto, duración
+   - Tono: educativo, entretenido, inspiracional, controversial, humorístico
+   - Música/audio: trending, original, none
+   - Estructura del guión: hook → desarrollo → CTA
+   - Tipo de video: talking head, screen recording, B-roll, animación, text overlay
+   - Métricas aproximadas: views, likes, engagement rate
 
-## Ejecución
+5. Detecta patrones comunes entre los contenidos más exitosos:
+   - Hooks más efectivos por plataforma
+   - Duración ideal por formato
+   - Elementos visuales recurrentes
+   - CTAs que generan más engagement
 
-1. Lee el TrendReport del trend_researcher usando `read_agent_output`
-2. Busca y analiza los videos/posts más virales del momento en el nicho de IA, SaaS y automatización
-3. Para cada contenido viral, analiza:
-   - Hook/gancho (tipo, texto, duración)
-   - Tono (educativo, entretenido, inspiracional, etc.)
-   - Música/audio (trending, original, none)
-   - Estructura del guión (hook → desarrollo → CTA)
-   - Tipo de video (talking head, screen recording, etc.)
-   - Métricas (views, likes, engagement)
-4. Detecta patrones comunes entre los contenidos más exitosos
-5. Genera recomendaciones de formato por plataforma
+6. Genera recomendaciones de formato por plataforma
 
-### Output:
-Genera un ViralAnalysisReport con:
-- Mínimo 10 contenidos virales analizados
-- Patrones detectados
-- Top hooks recomendados
-- Formatos ganadores por plataforma
+7. Guarda el resultado como JSON usando `save_agent_output` con suffix="viral_analysis":
+   {
+     "viral_content_analyzed": [
+       {
+         "platform": "tiktok",
+         "topic": "...",
+         "hook_type": "question",
+         "hook_text": "...",
+         "tone": "educativo",
+         "format": "talking_head",
+         "estimated_views": "1M+",
+         "engagement_rate": "high",
+         "script_structure": "hook → problem → solution → CTA",
+         "key_takeaway": "..."
+       }
+     ],
+     "patterns_detected": [...],
+     "top_hooks_by_platform": {...},
+     "winning_formats_by_platform": {...},
+     "recommendations": [...]
+   }
 
-Guarda usando `save_agent_output` con agent_name="viral_analyzer" y suffix="viral_analysis".
-"""
-
-        options = ClaudeAgentOptions(
-            allowed_tools=[
-                "WebSearch",
-                "WebFetch",
-                "mcp__content-engine__read_agent_output",
-                "mcp__content-engine__save_agent_output",
-                "mcp__content-engine__get_brand_guidelines",
-            ],
-            mcp_servers={"content-engine": tools_server},
-        )
-
-        async for message in query(prompt=analysis_prompt, options=options):
-            if hasattr(message, "content"):
-                self.logger.info(f"ViralAnalyzer: {str(message.content)[:200]}")
-
-        self.logger.info("Viral analysis completed")
+Investiga en ESPAÑOL e INGLÉS. Mínimo 10 piezas de contenido viral analizadas."""
 
 
-async def main():
+def main():
     agent = ViralAnalyzerAgent()
-    await agent.run()
+    result = agent.run()
+    print(result)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

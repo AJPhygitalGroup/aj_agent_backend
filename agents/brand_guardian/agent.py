@@ -1,34 +1,25 @@
 """
 Brand Guardian Agent - Valida que todo el contenido cumpla con el brand kit.
+Usa Anthropic API directamente con tool_use.
 """
 
-import asyncio
-
-from claude_agent_sdk import ClaudeAgentOptions, query
-
 from agents.base import BaseAgent
-from agents.tools import create_content_engine_tools
 
 
 class BrandGuardianAgent(BaseAgent):
     name = "brand_guardian"
     description = "Valida compliance de todo el contenido con las brand guidelines"
+    max_turns = 25
 
-    async def run(self) -> None:
-        self.logger.info("Starting brand compliance review")
+    def _build_prompt(self) -> str:
+        return """Valida que TODO el contenido generado cumpla con las brand guidelines de A&J Phygital Group.
 
-        prompt = self.load_prompt()
-        tools_server = create_content_engine_tools()
+## Tu tarea:
+1. Usa `get_brand_guidelines` para leer las brand guidelines completas
+2. Usa `read_agent_output` con agent_name="copywriter" para leer los ContentScripts
+3. Usa `read_agent_output` con agent_name="seo_hashtag_specialist" para leer las SEO optimizations
 
-        review_prompt = f"""{prompt}
-
-## Ejecución
-
-1. Lee las brand guidelines completas usando `get_brand_guidelines`
-2. Lee los ContentScripts del copywriter: `read_agent_output` con agent_name="copywriter"
-3. Lee las SEO optimizations: `read_agent_output` con agent_name="seo_hashtag_specialist"
-
-4. Para CADA pieza de contenido, evalúa:
+4. Para CADA pieza de contenido, evalúa con score 0-1:
 
    **Tono de Voz (score 0-1):**
    - ¿Es directo y orientado a resultados?
@@ -59,40 +50,40 @@ class BrandGuardianAgent(BaseAgent):
    - Score 0.5-0.69: Necesita revisión
    - Score <0.5: Rechazado
 
-6. Genera el BrandComplianceReport:
-   - Score por pieza
-   - Issues críticos y menores
-   - Recomendación del batch (approve/needs_revision/reject)
-
-7. Guarda usando `save_agent_output` con agent_name="brand_guardian" y suffix="compliance_report"
+6. Guarda usando `save_agent_output` con suffix="compliance_report":
+   {
+     "batch_score": 0.87,
+     "batch_recommendation": "approved_with_notes",
+     "content_reviews": [
+       {
+         "slot_id": "2026-02-16_IG_01",
+         "voice_score": 0.9,
+         "message_consistency_score": 0.85,
+         "reputation_risk_score": 0.95,
+         "quality_score": 0.88,
+         "overall_score": 0.89,
+         "status": "approved_with_notes",
+         "issues": ["Minor: CTA could be stronger"],
+         "suggestions": ["Consider adding a data point to support the claim"]
+       }
+     ],
+     "critical_issues": [],
+     "summary": "..."
+   }
 
 ### A&J Phygital Group - Brand Key Facts:
 - Tagline: "Automate. Grow. Dominate."
 - Colores: #667eea (azul), #764ba2 (morado), #f093fb (rosa)
 - Tono: directo, orientado a resultados, innovador, profesional pero accesible
 - Servicios: AI Automations ($29+), E-commerce Consulting, Custom App Development
-"""
-
-        options = ClaudeAgentOptions(
-            allowed_tools=[
-                "mcp__content-engine__read_agent_output",
-                "mcp__content-engine__save_agent_output",
-                "mcp__content-engine__get_brand_guidelines",
-            ],
-            mcp_servers={"content-engine": tools_server},
-        )
-
-        async for message in query(prompt=review_prompt, options=options):
-            if hasattr(message, "content"):
-                self.logger.info(f"BrandGuardian: {str(message.content)[:200]}")
-
-        self.logger.info("Brand compliance review completed")
+- NUNCA: promesas irreales, tono desesperado, descuentos excesivos, contenido genérico"""
 
 
-async def main():
+def main():
     agent = BrandGuardianAgent()
-    await agent.run()
+    result = agent.run()
+    print(result)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -1,38 +1,30 @@
 """
 Engagement Analyst Agent - Analiza métricas post-publicación.
+Usa Anthropic API directamente con tool_use.
 """
 
-import asyncio
-
-from claude_agent_sdk import ClaudeAgentOptions, query
-
 from agents.base import BaseAgent
-from agents.tools import create_content_engine_tools
 
 
 class EngagementAnalystAgent(BaseAgent):
     name = "engagement_analyst"
     description = "Analiza métricas de engagement y genera insights accionables"
+    max_turns = 20
 
-    async def run(self) -> None:
-        self.logger.info("Starting engagement analysis")
+    def _build_prompt(self) -> str:
+        return """Analiza las métricas de engagement post-publicación para A&J Phygital Group.
 
-        prompt = self.load_prompt()
-        tools_server = create_content_engine_tools()
+## Tu tarea:
+1. Usa `read_agent_output` con agent_name="scheduler" para leer el schedule report
+2. Usa `read_agent_output` con agent_name="content_planner" para leer el content plan original
+3. Usa `get_brand_guidelines` para contexto de marca
 
-        analysis_prompt = f"""{prompt}
-
-## Ejecución
-
-1. Lee el schedule report: `read_agent_output` con agent_name="scheduler"
-2. Lee el content plan original: `read_agent_output` con agent_name="content_planner"
-
-3. Para cada publicación del período:
+4. Para cada publicación del período:
    a. Recopilar métricas (views, likes, comments, shares, saves, reach, impressions)
    b. Calcular engagement rate por post
    c. Calcular métricas agregadas por plataforma
 
-4. Análisis:
+5. Análisis:
    - Identificar top 5 performers y bottom 5
    - ¿Qué pilar de contenido genera más engagement?
    - ¿Qué formato funciona mejor por plataforma?
@@ -40,45 +32,48 @@ class EngagementAnalystAgent(BaseAgent):
    - ¿Qué tipo de hook retiene más?
    - ¿Qué idioma (ES/EN) performa mejor por plataforma?
 
-5. Generar insights accionables:
+6. Generar insights accionables:
    - Recomendaciones para el próximo ciclo
    - Qué temas repetir o evitar
    - Ajustes de horarios sugeridos
    - Formatos a priorizar
 
-6. Feedback loop - datos para retroalimentar:
+7. Feedback loop - datos para retroalimentar:
    - Al Trend Researcher: qué temas funcionan
    - Al Content Planner: ajustar distribución
    - Al Copywriter: qué hooks/CTAs son más efectivos
 
-7. Guarda usando `save_agent_output` con agent_name="engagement_analyst" y suffix="engagement_report"
+8. Guarda usando `save_agent_output` con suffix="engagement_report":
+   {
+     "period": "2026-02-16 to 2026-02-22",
+     "overall_engagement_rate": 0.045,
+     "platform_summary": {
+       "instagram": {"posts": 14, "avg_engagement": 0.05, "total_reach": 15000},
+       "tiktok": {"posts": 14, "avg_engagement": 0.08, "total_views": 50000}
+     },
+     "top_performers": [...],
+     "bottom_performers": [...],
+     "pillar_performance": {...},
+     "insights": [...],
+     "recommendations_next_cycle": [...],
+     "feedback_for_agents": {
+       "trend_researcher": [...],
+       "content_planner": [...],
+       "copywriter": [...]
+     }
+   }
 
 ### Nota:
 Si las APIs de analytics no están configuradas aún, genera un template del reporte
 con la estructura correcta y métricas placeholder, para que sirva como referencia
-cuando las APIs estén activas.
-"""
-
-        options = ClaudeAgentOptions(
-            allowed_tools=[
-                "mcp__content-engine__read_agent_output",
-                "mcp__content-engine__save_agent_output",
-                "mcp__content-engine__get_brand_guidelines",
-            ],
-            mcp_servers={"content-engine": tools_server},
-        )
-
-        async for message in query(prompt=analysis_prompt, options=options):
-            if hasattr(message, "content"):
-                self.logger.info(f"EngagementAnalyst: {str(message.content)[:200]}")
-
-        self.logger.info("Engagement analysis completed")
+cuando las APIs estén activas."""
 
 
-async def main():
+def main():
     agent = EngagementAnalystAgent()
-    await agent.run()
+    result = agent.run()
+    print(result)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

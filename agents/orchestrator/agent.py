@@ -1,222 +1,142 @@
 """
 Orchestrator Agent - Director del pipeline de contenido.
 Coordina la ejecución de todos los agentes en el orden correcto.
+
+Nota: La orquestación principal se maneja desde main.py (CLI).
+Este módulo proporciona una clase que puede coordinar programáticamente.
 """
 
-import asyncio
-from pathlib import Path
+import importlib
+import traceback
 
-from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions, query
+from rich.console import Console
+from rich.panel import Panel
 
 from agents.base import BaseAgent
-from agents.tools import create_content_engine_tools
+from utils.helpers import save_json
+from utils.logger import setup_logger
+
+console = Console()
+
+# Mapeo de agentes a sus módulos y clases
+AGENT_REGISTRY = {
+    "trend_researcher": ("agents.trend_researcher.agent", "TrendResearcherAgent"),
+    "viral_analyzer": ("agents.viral_analyzer.agent", "ViralAnalyzerAgent"),
+    "content_planner": ("agents.content_planner.agent", "ContentPlannerAgent"),
+    "copywriter": ("agents.copywriter.agent", "CopywriterAgent"),
+    "seo_hashtag_specialist": ("agents.seo_hashtag_specialist.agent", "SEOHashtagSpecialistAgent"),
+    "visual_designer": ("agents.visual_designer.agent", "VisualDesignerAgent"),
+    "carousel_creator": ("agents.carousel_creator.agent", "CarouselCreatorAgent"),
+    "avatar_video_producer": ("agents.avatar_video_producer.agent", "AvatarVideoProducerAgent"),
+    "brand_guardian": ("agents.brand_guardian.agent", "BrandGuardianAgent"),
+    "scheduler": ("agents.scheduler.agent", "SchedulerAgent"),
+    "engagement_analyst": ("agents.engagement_analyst.agent", "EngagementAnalystAgent"),
+}
+
+PHASES = {
+    1: {"name": "Investigación", "agents": ["trend_researcher", "viral_analyzer"]},
+    2: {"name": "Planificación", "agents": ["content_planner"], "checkpoint": True},
+    3: {"name": "Creación de Contenido", "agents": ["copywriter", "seo_hashtag_specialist"]},
+    4: {"name": "Producción Visual", "agents": ["visual_designer", "carousel_creator"]},
+    5: {"name": "Validación", "agents": ["brand_guardian"], "checkpoint": True},
+    6: {"name": "Publicación", "agents": ["scheduler"], "checkpoint": True},
+    7: {"name": "Análisis", "agents": ["engagement_analyst"]},
+}
 
 
 class OrchestratorAgent(BaseAgent):
     name = "orchestrator"
     description = "Coordina todo el pipeline de generación de contenido"
 
-    def get_subagent_definitions(self) -> dict[str, AgentDefinition]:
-        """Define todos los sub-agentes disponibles."""
-        prompts_dir = self.project_root / "prompts"
+    def _run_single_agent(self, agent_name: str) -> dict:
+        """Instancia y ejecuta un agente, retorna resultado y estado."""
+        if agent_name not in AGENT_REGISTRY:
+            return {"agent": agent_name, "status": "error", "error": f"Agent not found: {agent_name}"}
 
-        def load_prompt(agent_name: str) -> str:
-            path = prompts_dir / f"{agent_name}.md"
-            return path.read_text(encoding="utf-8") if path.exists() else ""
+        module_path, class_name = AGENT_REGISTRY[agent_name]
+        try:
+            module = importlib.import_module(module_path)
+            agent_class = getattr(module, class_name)
+            agent_instance = agent_class()
 
-        return {
-            "trend-researcher": AgentDefinition(
-                description="Investigates trending topics across social media platforms and Google.",
-                prompt=load_prompt("trend_researcher"),
-                tools=["WebSearch", "WebFetch", "mcp__content-engine__save_agent_output", "mcp__content-engine__get_brand_guidelines"],
-                model="sonnet",
-            ),
-            "viral-analyzer": AgentDefinition(
-                description="Analyzes the structure, tone, music, and scripts of viral content.",
-                prompt=load_prompt("viral_analyzer"),
-                tools=["WebSearch", "WebFetch", "mcp__content-engine__read_agent_output", "mcp__content-engine__save_agent_output"],
-                model="sonnet",
-            ),
-            "content-planner": AgentDefinition(
-                description="Creates weekly content plans and exports to Google Sheets.",
-                prompt=load_prompt("content_planner"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_brand_guidelines",
-                    "mcp__content-engine__get_platform_specs",
-                ],
-                model="sonnet",
-            ),
-            "copywriter": AgentDefinition(
-                description="Writes scripts, captions, and descriptions for all content types.",
-                prompt=load_prompt("copywriter"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_brand_guidelines",
-                ],
-                model="opus",
-            ),
-            "seo-specialist": AgentDefinition(
-                description="Optimizes SEO, hashtags, and keywords for maximum reach.",
-                prompt=load_prompt("seo_hashtag_specialist"),
-                tools=[
-                    "WebSearch",
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_brand_guidelines",
-                ],
-                model="sonnet",
-            ),
-            "visual-designer": AgentDefinition(
-                description="Generates hook images and thumbnails using Flux API.",
-                prompt=load_prompt("visual_designer"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_brand_guidelines",
-                    "Bash",
-                ],
-                model="sonnet",
-            ),
-            "carousel-creator": AgentDefinition(
-                description="Creates carousel posts for Instagram and LinkedIn.",
-                prompt=load_prompt("carousel_creator"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_brand_guidelines",
-                    "Bash",
-                ],
-                model="sonnet",
-            ),
-            "avatar-video-producer": AgentDefinition(
-                description="Generates AI avatar videos using HeyGen API. Only activated on demand.",
-                prompt=load_prompt("avatar_video_producer"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "Bash",
-                ],
-                model="sonnet",
-            ),
-            "brand-guardian": AgentDefinition(
-                description="Validates all content against brand guidelines before publishing.",
-                prompt=load_prompt("brand_guardian"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_brand_guidelines",
-                ],
-                model="opus",
-            ),
-            "scheduler": AgentDefinition(
-                description="Schedules approved content for publication on social media platforms.",
-                prompt=load_prompt("scheduler"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "mcp__content-engine__get_platform_specs",
-                    "Bash",
-                ],
-                model="sonnet",
-            ),
-            "engagement-analyst": AgentDefinition(
-                description="Analyzes post-publication engagement metrics and generates insights.",
-                prompt=load_prompt("engagement_analyst"),
-                tools=[
-                    "mcp__content-engine__read_agent_output",
-                    "mcp__content-engine__save_agent_output",
-                    "Bash",
-                ],
-                model="sonnet",
-            ),
-        }
+            console.print(f"[cyan]>> Running {agent_name}...[/cyan]")
+            result = agent_instance.run()
+            console.print(f"[green]OK {agent_name} completed[/green]")
 
-    async def run(self, instruction: str | None = None) -> None:
-        """Ejecuta el pipeline completo."""
+            return {"agent": agent_name, "status": "completed", "result_length": len(result) if result else 0}
+        except Exception as e:
+            self.logger.error(f"Agent {agent_name} failed: {e}\n{traceback.format_exc()}")
+            console.print(f"[red]FAIL {agent_name} failed: {e}[/red]")
+            return {"agent": agent_name, "status": "error", "error": str(e)}
+
+    def run_pipeline(self, skip_checkpoints: bool = False) -> dict:
+        """Ejecuta el pipeline completo fase por fase."""
         self.logger.info("Starting Content Engine Pipeline")
+        console.print(Panel(
+            "[bold]A&J Phygital Group Content Engine[/bold]\nAutomate. Grow. Dominate.",
+            style="bold blue",
+        ))
 
-        prompt = instruction or self._build_default_prompt()
-        tools_server = create_content_engine_tools()
-        subagents = self.get_subagent_definitions()
+        pipeline_results = {"phases": {}, "errors": [], "status": "completed"}
 
-        options = ClaudeAgentOptions(
-            allowed_tools=[
-                "Task",
-                "Read",
-                "Write",
-                "Glob",
-                "Grep",
-                "mcp__content-engine__get_pipeline_state",
-                "mcp__content-engine__update_pipeline_state",
-                "mcp__content-engine__request_human_approval",
-                "mcp__content-engine__read_agent_output",
-                "mcp__content-engine__get_brand_guidelines",
-            ],
-            mcp_servers={"content-engine": tools_server},
-            agents=subagents,
-        )
+        for phase_num in sorted(PHASES.keys()):
+            phase_info = PHASES[phase_num]
+            console.print(f"\n[bold blue]=== FASE {phase_num}: {phase_info['name']} ===[/bold blue]")
 
-        async for message in query(prompt=prompt, options=options):
-            if hasattr(message, "content"):
-                self.logger.info(f"Orchestrator: {str(message.content)[:200]}")
+            phase_results = []
+            for agent_name in phase_info["agents"]:
+                result = self._run_single_agent(agent_name)
+                phase_results.append(result)
+                if result["status"] == "error":
+                    pipeline_results["errors"].append(result)
 
-        self.logger.info("Pipeline execution completed")
+            pipeline_results["phases"][phase_num] = {
+                "name": phase_info["name"],
+                "results": phase_results,
+            }
 
-    def _build_default_prompt(self) -> str:
-        """Construye el prompt por defecto para el orchestrator."""
-        system_prompt = self.load_prompt()
-        return f"""{system_prompt}
+            # Update pipeline state
+            self.update_pipeline_state({
+                "phase": phase_num,
+                "phase_name": phase_info["name"],
+                "agents_completed": [r["agent"] for r in phase_results if r["status"] == "completed"],
+            })
 
-## Tu tarea ahora
+            # Checkpoint
+            if phase_info.get("checkpoint") and not skip_checkpoints:
+                console.print("[yellow]CHECKPOINT: Requiere aprobacion humana.[/yellow]")
+                try:
+                    import typer
+                    proceed = typer.confirm("¿Aprobar y continuar?")
+                    if not proceed:
+                        console.print("[red]Pipeline detenido por el usuario.[/red]")
+                        pipeline_results["status"] = "stopped_by_user"
+                        break
+                except Exception:
+                    console.print("[yellow]Running non-interactively, skipping checkpoint.[/yellow]")
 
-Ejecuta el pipeline completo de generación de contenido para A&J Phygital Group.
+        # Save final pipeline state
+        state_path = self.project_root / "data" / "outputs" / "pipeline_state.json"
+        save_json(pipeline_results, state_path)
 
-### Flujo a seguir:
-1. **FASE 1 - INVESTIGACIÓN** (paralelo):
-   - Usa el agente `trend-researcher` para investigar tendencias actuales
-   - Usa el agente `viral-analyzer` para analizar contenido viral del momento
+        if pipeline_results["status"] == "completed":
+            console.print(Panel("[bold green]Pipeline completado![/bold green]", style="green"))
+        self.logger.info(f"Pipeline finished: {pipeline_results['status']}")
+        return pipeline_results
 
-2. **FASE 2 - PLANIFICACIÓN**:
-   - Usa el agente `content-planner` para crear el plan de contenido semanal
-   - PAUSA: Solicita aprobación humana con `request_human_approval`
+    def run(self, custom_prompt: str | None = None) -> str:
+        """Compatibilidad con BaseAgent.run() - ejecuta el pipeline."""
+        result = self.run_pipeline()
+        return f"Pipeline {result['status']}. Errors: {len(result['errors'])}"
 
-3. **FASE 3 - CREACIÓN** (paralelo):
-   - Usa el agente `copywriter` para escribir todos los guiones
-   - Usa el agente `seo-specialist` para optimizar SEO y hashtags
-
-4. **FASE 4 - PRODUCCIÓN VISUAL** (paralelo):
-   - Usa el agente `visual-designer` para generar imágenes
-   - Usa el agente `carousel-creator` para crear carruseles
-   - (Opcional) Usa `avatar-video-producer` si hay videos con avatar
-
-5. **FASE 5 - VALIDACIÓN**:
-   - Usa el agente `brand-guardian` para validar todo el contenido
-   - PAUSA: Solicita aprobación humana
-
-6. **FASE 6 - PUBLICACIÓN**:
-   - Usa el agente `scheduler` para programar publicaciones
-   - PAUSA: Solicita aprobación final antes de publicar
-
-7. **FASE 7 - ANÁLISIS** (post-publicación):
-   - Usa el agente `engagement-analyst` para analizar métricas
-
-### Reglas:
-- Actualiza el pipeline state después de cada fase con `update_pipeline_state`
-- En cada CHECKPOINT, usa `request_human_approval` y DETENTE
-- Si un agente falla, registra el error y continúa con los demás
-- Target: 3-6 posts/día en Instagram, TikTok, LinkedIn, YouTube, Facebook
-- Idiomas: Español + Inglés
-"""
+    def _build_prompt(self) -> str:
+        return "Execute the full content generation pipeline."
 
 
-async def main():
-    """Entry point para ejecutar el Orchestrator."""
+def main():
     agent = OrchestratorAgent()
-    await agent.run()
+    agent.run_pipeline()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

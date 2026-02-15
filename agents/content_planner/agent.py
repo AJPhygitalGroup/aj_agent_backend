@@ -1,33 +1,24 @@
 """
 Content Planner Agent - Genera el plan de contenido semanal.
+Usa Anthropic API directamente con tool_use.
 """
 
-import asyncio
-
-from claude_agent_sdk import ClaudeAgentOptions, query
-
 from agents.base import BaseAgent
-from agents.tools import create_content_engine_tools
 
 
 class ContentPlannerAgent(BaseAgent):
     name = "content_planner"
     description = "Genera plan de contenido semanal y lo exporta a Google Sheets"
+    max_turns = 25
 
-    async def run(self) -> None:
-        self.logger.info("Starting content planning")
+    def _build_prompt(self) -> str:
+        return """Genera un plan de contenido semanal completo para A&J Phygital Group.
 
-        prompt = self.load_prompt()
-        tools_server = create_content_engine_tools()
-
-        planning_prompt = f"""{prompt}
-
-## Ejecución
-
-1. Lee el TrendReport del trend_researcher usando `read_agent_output` con agent_name="trend_researcher"
-2. Lee el ViralAnalysisReport del viral_analyzer usando `read_agent_output` con agent_name="viral_analyzer"
-3. Lee las brand guidelines usando `get_brand_guidelines`
-4. Lee las specs de plataformas usando `get_platform_specs`
+## Tu tarea:
+1. Usa `read_agent_output` con agent_name="trend_researcher" para leer el TrendReport
+2. Usa `read_agent_output` con agent_name="viral_analyzer" para leer el ViralAnalysisReport
+3. Usa `get_brand_guidelines` para leer las brand guidelines
+4. Usa `get_platform_specs` para leer las specs de plataformas
 
 5. Crea un plan de contenido para los próximos 7 días con:
    - 3-6 posts por día
@@ -40,8 +31,8 @@ class ContentPlannerAgent(BaseAgent):
      * 10% Educación y Valor
 
 6. Para cada pieza de contenido define:
-   - Fecha y hora de publicación
-   - Plataforma y tipo de contenido (reel, carousel, post, video, etc.)
+   - Fecha y hora de publicación (formato ISO 8601)
+   - Plataforma y tipo de contenido (reel, carousel, post, video, short, etc.)
    - Tema y ángulo específico
    - Idea de hook/gancho
    - Patrón viral a aplicar (del ViralAnalysisReport)
@@ -49,7 +40,33 @@ class ContentPlannerAgent(BaseAgent):
    - Pilar de contenido
    - Prioridad (high/medium/low)
 
-7. Guarda el plan usando `save_agent_output` con agent_name="content_planner" y suffix="content_plan"
+7. Guarda el plan usando `save_agent_output` con suffix="content_plan":
+   {
+     "week_start": "2026-02-16",
+     "week_end": "2026-02-22",
+     "total_posts": 28,
+     "daily_plans": [
+       {
+         "date": "2026-02-16",
+         "content_slots": [
+           {
+             "slot_id": "2026-02-16_IG_01",
+             "platform": "instagram",
+             "content_type": "reel",
+             "topic": "...",
+             "hook_idea": "...",
+             "viral_pattern": "...",
+             "language": "es",
+             "pillar": "ai_automations",
+             "scheduled_time": "2026-02-16T10:00:00-05:00",
+             "priority": "high"
+           }
+         ]
+       }
+     ],
+     "pillar_distribution": {...},
+     "platform_distribution": {...}
+   }
 
 ### Reglas:
 - NO repetir el mismo tema en el mismo día en diferentes plataformas
@@ -57,29 +74,14 @@ class ContentPlannerAgent(BaseAgent):
 - Alternar entre pilares para mantener variedad
 - Incluir al menos 1 contenido educativo de alto valor por día
 - Priorizar temas con tendencias rising
-"""
-
-        options = ClaudeAgentOptions(
-            allowed_tools=[
-                "mcp__content-engine__read_agent_output",
-                "mcp__content-engine__save_agent_output",
-                "mcp__content-engine__get_brand_guidelines",
-                "mcp__content-engine__get_platform_specs",
-            ],
-            mcp_servers={"content-engine": tools_server},
-        )
-
-        async for message in query(prompt=planning_prompt, options=options):
-            if hasattr(message, "content"):
-                self.logger.info(f"ContentPlanner: {str(message.content)[:200]}")
-
-        self.logger.info("Content planning completed")
+- Horarios óptimos por plataforma (ver platform specs)"""
 
 
-async def main():
+def main():
     agent = ContentPlannerAgent()
-    await agent.run()
+    result = agent.run()
+    print(result)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
