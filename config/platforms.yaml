@@ -1,0 +1,133 @@
+# ===========================================
+# Configuración por Plataforma
+# ===========================================
+
+platforms:
+  instagram:
+    name: "Instagram"
+    enabled: true
+    content_types:
+      - reel
+      - carousel
+      - story
+      - post
+    specs:
+      reel:
+        max_duration_seconds: 90
+        aspect_ratio: "9:16"
+        resolution: [1080, 1920]
+        max_caption_length: 2200
+        max_hashtags: 30
+      carousel:
+        max_slides: 10
+        aspect_ratios: ["1:1", "4:5"]
+        resolution_square: [1080, 1080]
+        resolution_portrait: [1080, 1350]
+        max_caption_length: 2200
+      post:
+        aspect_ratios: ["1:1", "4:5", "16:9"]
+        max_caption_length: 2200
+      story:
+        aspect_ratio: "9:16"
+        resolution: [1080, 1920]
+        max_duration_seconds: 60
+    api_type: "meta_business"
+    rate_limits:
+      posts_per_day: 25
+      api_calls_per_hour: 200
+
+  tiktok:
+    name: "TikTok"
+    enabled: true
+    content_types:
+      - video
+      - photo_carousel
+    specs:
+      video:
+        max_duration_seconds: 600
+        recommended_duration_seconds: [15, 30, 60]
+        aspect_ratio: "9:16"
+        resolution: [1080, 1920]
+        max_caption_length: 2200
+        max_hashtags: 5
+      photo_carousel:
+        max_slides: 35
+        aspect_ratio: "9:16"
+    api_type: "tiktok_business"
+    rate_limits:
+      posts_per_day: 10
+      api_calls_per_hour: 100
+
+  linkedin:
+    name: "LinkedIn"
+    enabled: true
+    content_types:
+      - text_post
+      - article
+      - carousel
+      - video
+    specs:
+      text_post:
+        max_length: 3000
+        max_hashtags: 5
+        recommended_hashtags: 3
+      carousel:
+        max_slides: 10
+        resolution: [1080, 1080]
+        format: "pdf"
+      video:
+        max_duration_seconds: 600
+        aspect_ratios: ["16:9", "1:1", "9:16"]
+      article:
+        max_length: 125000
+    api_type: "linkedin_v2"
+    rate_limits:
+      posts_per_day: 5
+      api_calls_per_day: 100
+
+  youtube:
+    name: "YouTube"
+    enabled: true
+    content_types:
+      - long_video
+      - short
+    specs:
+      long_video:
+        recommended_duration_minutes: [8, 15]
+        aspect_ratio: "16:9"
+        resolution: [1920, 1080]
+        max_title_length: 100
+        max_description_length: 5000
+        max_tags: 500
+      short:
+        max_duration_seconds: 60
+        aspect_ratio: "9:16"
+        resolution: [1080, 1920]
+    api_type: "youtube_data_v3"
+    rate_limits:
+      uploads_per_day: 10
+      api_units_per_day: 10000
+
+  facebook:
+    name: "Facebook"
+    enabled: true
+    content_types:
+      - post
+      - reel
+      - video
+      - story
+    specs:
+      post:
+        max_text_length: 63206
+        image_resolution: [1200, 630]
+      reel:
+        max_duration_seconds: 90
+        aspect_ratio: "9:16"
+        resolution: [1080, 1920]
+      video:
+        max_duration_minutes: 240
+        aspect_ratios: ["16:9", "9:16", "1:1"]
+    api_type: "meta_business"
+    rate_limits:
+      posts_per_day: 25
+      api_calls_per_hour: 200

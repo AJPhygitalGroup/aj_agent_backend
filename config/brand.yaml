@@ -1,0 +1,276 @@
+# ===========================================
+# Brand Guidelines - A&J Phygital Group LLC
+# ===========================================
+# Datos extraidos de www.ajphygitalgroup.com
+
+brand:
+  name: "A&J Phygital Group LLC"
+  tagline: "Automate. Grow. Dominate."
+  website: "https://www.ajphygitalgroup.com"
+  founded: 2024
+  founder: "Jorge"
+  email: "managment@ajphygitalgroup.com"
+  phone: "+1-571-420-2257"
+  locations:
+    - "Ashburn, VA 20147"
+    - "Manassas Park, VA 20147"
+  business_hours: "Lunes-Viernes, 09:00-18:00"
+
+  # --- Identidad Visual ---
+  colors:
+    primary: "#667eea"       # Azul principal de la marca
+    secondary: "#764ba2"     # Morado/violeta (gradiente)
+    accent: "#f093fb"        # Rosa acento
+    background: "#FFFFFF"
+    dark_background: "#1a1a2e"
+    text: "#333333"
+    text_light: "#FFFFFF"
+
+  typography:
+    primary_font: "Inter"
+    secondary_font: "Inter"
+    weights:
+      - 400  # Regular
+      - 500  # Medium
+      - 700  # Bold
+      - 900  # Black
+    heading_weight: "bold"
+    body_weight: "regular"
+
+  logo:
+    primary: "data/brand_assets/logo.png"
+    secondary: "data/brand_assets/logo.jpg"
+    icon: "data/brand_assets/logo_icon.png"       # TODO: Agregar si tienes isotipo separado
+    og_image: "data/brand_assets/og-image.jpg"     # 1200x630px
+    min_clear_space: 20
+
+  # --- Identidad de Voz ---
+  voice:
+    tone: "directo, orientado a resultados, innovador, profesional pero accesible"
+    personality:
+      - "Tech-forward e innovador"
+      - "Orientado a ROI y eficiencia"
+      - "Experto en IA y automatizacion sin jerga innecesaria"
+      - "Inspira confianza y autoridad"
+      - "Empatico con los dolores de las SMBs"
+
+    do:
+      - "Usar datos concretos y casos de uso reales"
+      - "Hablar de resultados medibles y ROI"
+      - "Ser directo y conciso - ir al grano"
+      - "Compartir conocimiento genuino sobre IA y automatizacion"
+      - "Usar storytelling mostrando transformaciones de negocios"
+      - "Mencionar reduccion de costos y eficiencia (ej: 90% reduccion tareas manuales)"
+      - "Posicionar la IA como accesible para cualquier negocio"
+
+    dont:
+      - "Usar lenguaje demasiado tecnico sin explicar"
+      - "Prometer resultados irreales"
+      - "Ser agresivo o desesperado en ventas"
+      - "Copiar tendencias sin adaptarlas a la marca"
+      - "Usar humor que pueda malinterpretarse"
+      - "Hablar de IA de forma generica sin aterrizar en soluciones concretas"
+
+  # --- Servicios (para contexto de contenido) ---
+  services:
+    - name: "AI Automations"
+      description: "Agentes autonomos, chatbots WhatsApp, soporte 24/7, automatizacion de workflows"
+      starting_price: "$29/mes"
+      key_metric: "Reduccion 90% de tareas manuales"
+
+    - name: "E-commerce Consulting"
+      description: "Configuracion de tiendas, optimizacion de conversion, integracion de pagos"
+      starting_price: "Custom"
+
+    - name: "Custom App Development"
+      description: "Dashboards, portales de clientes, SaaS MVPs"
+      starting_price: "Custom"
+
+  # --- Pricing Tiers ---
+  pricing:
+    - tier: "Basic"
+      price: "$29/mes"
+      tokens: "100K"
+      templates: 3
+
+    - tier: "Intermediate"
+      price: "$59/mes"
+      tokens: "300K"
+      templates: 6
+      popular: true
+
+    - tier: "Complete"
+      price: "$99/mes"
+      tokens: "500K"
+      templates: 8
+
+    - tier: "Enterprise"
+      price: "Custom"
+      tokens: "Ilimitado"
+
+  # --- Pilares de Contenido ---
+  content_pillars:
+    - name: "AI Automations & Chatbots"
+      description: "Como la IA y chatbots transforman procesos empresariales, especialmente para SMBs"
+      weight: 0.30
+      topics:
+        - "Chatbots de WhatsApp con IA"
+        - "Automatizacion de atencion al cliente"
+        - "Agentes autonomos para negocios"
+        - "ROI de implementar IA en tu empresa"
+        - "Casos de uso reales de automatizacion"
+        - "Multi-agent systems explicados"
+
+    - name: "SaaS & App Development"
+      description: "Creacion y escalamiento de productos SaaS y aplicaciones custom"
+      weight: 0.25
+      topics:
+        - "Desarrollo de MVPs SaaS"
+        - "Dashboards y portales para clientes"
+        - "Estrategias de crecimiento SaaS"
+        - "Product-led growth"
+        - "Custom app development process"
+
+    - name: "E-commerce Consulting"
+      description: "Estrategias y optimizacion de e-commerce para SMBs"
+      weight: 0.20
+      topics:
+        - "Optimizacion de tiendas online"
+        - "Estrategias de conversion"
+        - "Integracion de pagos"
+        - "Marketing para e-commerce"
+        - "Tendencias en comercio digital"
+
+    - name: "Thought Leadership"
+      description: "Posicionamiento como lideres en AI automation para SMBs"
+      weight: 0.15
+      topics:
+        - "Futuro de la IA en negocios"
+        - "Opiniones sobre tendencias tech"
+        - "Casos de exito de A&J"
+        - "Behind the scenes del equipo"
+        - "Jorge como fundador y experto"
+
+    - name: "Educacion y Valor Gratuito"
+      description: "Contenido educativo que demuestra expertise"
+      weight: 0.10
+      topics:
+        - "Tips de automatizacion rapidos"
+        - "Guias paso a paso"
+        - "Errores comunes al implementar IA"
+        - "Recursos y herramientas gratuitas"
+        - "Tutoriales de integraciones"
+
+  # --- Buyer Personas ---
+  target_audience:
+    primary:
+      name: "SMB Owner / Decision Maker"
+      age_range: "30-55"
+      role: "Dueño de negocio, CEO, COO de empresa pequeña/mediana"
+      pain_points:
+        - "Procesos manuales que consumen demasiado tiempo"
+        - "Atencion al cliente limitada por horarios y personal"
+        - "No sabe por donde empezar con IA"
+        - "Miedo a la complejidad tecnologica"
+        - "Necesita crecer pero no puede contratar mas personal"
+      goals:
+        - "Automatizar procesos repetitivos"
+        - "Escalar su negocio sin aumentar costos proporcionalmente"
+        - "Ofrecer atencion al cliente 24/7"
+        - "Adoptar IA de forma practica y rentable"
+      platforms:
+        - "linkedin"
+        - "facebook"
+        - "youtube"
+        - "instagram"
+
+    secondary:
+      name: "Tech-Curious Entrepreneur"
+      age_range: "25-40"
+      role: "Emprendedor digital, startup founder, freelancer tech"
+      pain_points:
+        - "Quiere lanzar su SaaS pero no sabe como"
+        - "Necesita un MVP rapido y funcional"
+        - "Busca optimizar su e-commerce"
+        - "Quiere usar IA pero le falta el know-how tecnico"
+      goals:
+        - "Lanzar su producto digital"
+        - "Integrar IA en su flujo de trabajo"
+        - "Optimizar conversion en su tienda online"
+        - "Aprender de expertos en automatizacion"
+      platforms:
+        - "tiktok"
+        - "instagram"
+        - "youtube"
+        - "linkedin"
+
+  # --- Redes Sociales ---
+  social_media:
+    facebook: "@ajphygitalgroup"
+    instagram: "@ajphygitalgroup"
+    twitter: "@AJPhygital"
+    linkedin: "ajphygitalgroup"
+    tiktok: ""  # TODO: Agregar handle de TikTok
+    youtube: ""  # TODO: Agregar canal de YouTube
+
+  # --- Hashtags de Marca ---
+  branded_hashtags:
+    always_include:
+      - "#AJPhygitalGroup"
+      - "#AutomateGrowDominate"
+    optional:
+      - "#AutomatizacionIA"
+      - "#PhygitalGroup"
+      - "#AIAutomation"
+      - "#ChatbotIA"
+      - "#BusinessAutomation"
+
+  # --- SEO Keywords ---
+  seo_keywords:
+    primary:
+      - "Chatbot IA"
+      - "automatizacion WhatsApp"
+      - "asistente inteligente"
+      - "AI business automation"
+      - "chatbot for business"
+    secondary:
+      - "atencion al cliente IA"
+      - "calificacion leads automatica"
+      - "SaaS development"
+      - "e-commerce consulting"
+      - "workflow automation"
+
+  # --- CTAs Recurrentes ---
+  ctas:
+    soft:
+      es:
+        - "Guarda este post para despues"
+        - "Comparte con alguien que lo necesite"
+        - "Comenta tu experiencia"
+        - "Que opinas? Dejalo en los comentarios"
+      en:
+        - "Save this for later"
+        - "Share with someone who needs this"
+        - "Drop your thoughts in the comments"
+    medium:
+      es:
+        - "Siguenos para mas contenido como este"
+        - "Activa las notificaciones"
+        - "Visita el link en bio"
+      en:
+        - "Follow for more AI automation tips"
+        - "Turn on notifications"
+        - "Link in bio"
+    hard:
+      es:
+        - "Agenda tu consulta gratuita"
+        - "Contactanos para tu proyecto"
+        - "Empieza desde $29/mes"
+      en:
+        - "Schedule your free consultation"
+        - "Contact us for your project"
+        - "Start from $29/month"
+
+  # --- Google Analytics ---
+  analytics:
+    ga_id: "G-EJHMWZLJ02"

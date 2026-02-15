@@ -1,0 +1,56 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/*.log
+
+# Data outputs (generated content)
+data/outputs/images/*
+data/outputs/videos/*
+data/outputs/carousels/*
+data/outputs/scripts/*
+data/temp/*
+!data/outputs/.gitkeep
+!data/temp/.gitkeep
+
+# Google credentials
+config/google-service-account.json
+
+# Node (dashboard)
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+
+# Brand assets (large files)
+data/brand_assets/*.psd
+data/brand_assets/*.ai
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

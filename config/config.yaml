@@ -1,0 +1,182 @@
+# ===========================================
+# Configuración General del Content Engine
+# ===========================================
+
+project:
+  name: "A&J Phygital Group Content Engine"
+  version: "1.0.0"
+  language: ["es", "en"]
+  timezone: "America/New_York"  # Ajustar a tu zona horaria
+
+# --- Configuración de Agentes ---
+agents:
+  orchestrator:
+    enabled: true
+    max_retries: 3
+    timeout_seconds: 300
+
+  trend_researcher:
+    enabled: true
+    max_trends_per_platform: 10
+    relevance_threshold: 0.7  # 0-1, qué tan relevante al nicho debe ser
+    platforms:
+      - facebook
+      - instagram
+      - linkedin
+      - youtube
+      - tiktok
+      - google_trends
+    nicho_keywords:
+      - "inteligencia artificial"
+      - "automatización"
+      - "SaaS"
+      - "e-commerce"
+      - "transformación digital"
+      - "AI automation"
+      - "no-code"
+      - "machine learning"
+      - "artificial intelligence"
+      - "digital transformation"
+
+  viral_analyzer:
+    enabled: true
+    max_videos_to_analyze: 20
+    min_views_threshold: 100000
+    analysis_depth: "detailed"  # basic, detailed, deep
+
+  content_planner:
+    enabled: true
+    posts_per_day: 5  # Target: 3-6 posts/día
+    planning_horizon_days: 7  # Planificar 1 semana a la vez
+    platforms_distribution:
+      instagram: 2      # reels + carruseles
+      tiktok: 2          # videos cortos
+      linkedin: 1        # posts profesionales
+      facebook: 1        # posts/videos
+      youtube: 0.5       # 3-4 videos/semana (largo formato)
+    content_types:
+      - reel
+      - tiktok_video
+      - carousel
+      - linkedin_post
+      - youtube_video
+      - facebook_post
+      - podcast_clip
+
+  copywriter:
+    enabled: true
+    default_llm: "anthropic"  # anthropic | openai
+    tone_of_voice: "profesional pero accesible"
+    max_script_length:
+      reel: 150          # palabras
+      tiktok: 100        # palabras
+      youtube: 2000      # palabras
+      linkedin: 300      # palabras
+      podcast: 3000      # palabras
+      carousel: 50       # palabras por slide
+
+  visual_designer:
+    enabled: true
+    image_sizes:
+      instagram_post: [1080, 1080]
+      instagram_reel_cover: [1080, 1920]
+      youtube_thumbnail: [1280, 720]
+      facebook_post: [1200, 630]
+      linkedin_post: [1200, 627]
+      tiktok_cover: [1080, 1920]
+    style_consistency: true
+    generate_ab_variants: true
+
+  carousel_creator:
+    enabled: true
+    slides_per_carousel:
+      min: 5
+      max: 10
+    formats:
+      instagram: [1080, 1080]
+      linkedin: [1080, 1080]
+
+  avatar_video_producer:
+    enabled: true
+    on_demand: true  # Solo se activa cuando se solicita
+    avatar_id: ""    # Configurar con tu avatar de HeyGen
+    default_language: "es"
+    generate_both_languages: true
+
+  seo_hashtag_specialist:
+    enabled: true
+    hashtags_per_post:
+      instagram: 25
+      tiktok: 5
+      linkedin: 5
+      youtube: 15
+      facebook: 5
+    include_branded_hashtags: true
+    branded_hashtags:
+      - "#AJPhygitalGroup"
+      - "#AutomatizacionIA"
+      - "#PhygitalGroup"
+
+  engagement_analyst:
+    enabled: true
+    analysis_frequency_hours: 24
+    metrics_to_track:
+      - engagement_rate
+      - reach
+      - impressions
+      - likes
+      - comments
+      - shares
+      - saves
+      - watch_time
+      - click_through_rate
+
+  scheduler:
+    enabled: true
+    best_posting_times:
+      instagram:
+        - "08:00"
+        - "12:00"
+        - "18:00"
+      tiktok:
+        - "07:00"
+        - "12:00"
+        - "19:00"
+      linkedin:
+        - "08:00"
+        - "12:00"
+      youtube:
+        - "14:00"
+      facebook:
+        - "09:00"
+        - "13:00"
+        - "17:00"
+    buffer_minutes: 15  # Espacio entre publicaciones
+
+  brand_guardian:
+    enabled: true
+    strict_mode: true
+    checks:
+      - tone_of_voice
+      - color_palette
+      - typography
+      - logo_usage
+      - messaging_consistency
+      - reputation_risk
+
+# --- Configuración del Pipeline ---
+pipeline:
+  auto_start: false
+  checkpoints:
+    plan_approval: true
+    content_approval: true
+    schedule_approval: true
+  notification_method: "dashboard"  # dashboard | email | slack
+  parallel_execution: true
+
+# --- Logging ---
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_rotation: "daily"
+  max_files: 30
