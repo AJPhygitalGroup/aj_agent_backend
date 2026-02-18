@@ -5,12 +5,15 @@ Se despliega en el VPS con Docker/Easypanel.
 """
 
 import json
+import logging
 import os
 import sys
 import threading
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +21,17 @@ from pydantic import BaseModel
 # Ensure project root is in path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Load .env BEFORE anything else
+load_dotenv(Path(__file__).parent / ".env", override=True)
+
 from utils.helpers import get_project_root, load_json, save_json
+
+# Configure logging for the API
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("content-engine-api")
 
 app = FastAPI(
     title="A&J Content Engine API",
@@ -98,9 +111,42 @@ def get_campaign_brief() -> dict | None:
 def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
     """Runs the full pipeline in a background thread."""
     global _pipeline_running
-
-    from agents.orchestrator.agent import OrchestratorAgent, PHASES
     import importlib
+    import time
+
+    logger.info("Pipeline thread started for brief: %s", brief[:100])
+
+    # Verify critical env vars upfront
+    missing_keys = []
+    for key in ["ANTHROPIC_API_KEY"]:
+        if not os.getenv(key):
+            missing_keys.append(key)
+    if missing_keys:
+        logger.error("Missing critical env vars: %s", missing_keys)
+        OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+        save_json({
+            "status": "error",
+            "error": f"Missing environment variables: {', '.join(missing_keys)}. Configure them in Easypanel.",
+            "campaign_brief": brief,
+        }, OUTPUTS_DIR / "pipeline_state.json")
+        with _pipeline_lock:
+            _pipeline_running = False
+        return
+
+    try:
+        from agents.orchestrator.agent import PHASES
+    except Exception as e:
+        logger.error("Failed to import PHASES: %s\n%s", e, traceback.format_exc())
+        OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+        save_json({
+            "status": "error",
+            "error": f"Import error: {e}",
+            "traceback": traceback.format_exc(),
+            "campaign_brief": brief,
+        }, OUTPUTS_DIR / "pipeline_state.json")
+        with _pipeline_lock:
+            _pipeline_running = False
+        return
 
     AGENT_REGISTRY = {
         "trend_researcher": ("agents.trend_researcher.agent", "TrendResearcherAgent"),
@@ -137,9 +183,12 @@ def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
             "started_at": campaign_data["timestamp"],
         }, OUTPUTS_DIR / "pipeline_state.json")
 
+        logger.info("Pipeline state saved, starting phases...")
+
         # Run phases
         for phase_num in sorted(PHASES.keys()):
             phase_info = PHASES[phase_num]
+            logger.info("=== PHASE %d: %s ===", phase_num, phase_info["name"])
 
             # Update state
             save_json({
@@ -153,18 +202,31 @@ def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
             # Run agents in phase
             for agent_name in phase_info["agents"]:
                 if agent_name not in AGENT_REGISTRY:
+                    logger.warning("Agent %s not in registry, skipping", agent_name)
                     continue
                 module_path, class_name = AGENT_REGISTRY[agent_name]
+                logger.info("Running agent: %s (%s.%s)", agent_name, module_path, class_name)
                 try:
                     module = importlib.import_module(module_path)
                     agent_class = getattr(module, class_name)
                     agent_instance = agent_class()
-                    agent_instance.run()
+                    result = agent_instance.run()
+                    logger.info("Agent %s completed. Result length: %d", agent_name, len(result) if result else 0)
                 except Exception as e:
-                    print(f"Agent {agent_name} failed: {e}")
+                    logger.error("Agent %s failed: %s\n%s", agent_name, e, traceback.format_exc())
+                    # Save error to state but continue pipeline
+                    save_json({
+                        "status": "running",
+                        "phase": phase_num,
+                        "phase_name": phase_info["name"],
+                        "campaign_brief": brief,
+                        "started_at": campaign_data["timestamp"],
+                        "last_error": f"Agent {agent_name}: {e}",
+                    }, OUTPUTS_DIR / "pipeline_state.json")
 
             # Checkpoints - pause and wait for approval via API
             if phase_info.get("checkpoint"):
+                logger.info("CHECKPOINT at phase %d - waiting for approval", phase_num)
                 save_json({
                     "status": "waiting_approval",
                     "phase": phase_num,
@@ -175,11 +237,10 @@ def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
                 }, OUTPUTS_DIR / "pipeline_state.json")
 
                 # Wait for approval (poll every 5 seconds)
-                import time
                 while True:
                     state = get_pipeline_state()
                     if state.get("status") == "approved":
-                        # Reset to running
+                        logger.info("Checkpoint approved, continuing...")
                         save_json({
                             "status": "running",
                             "phase": phase_num,
@@ -189,12 +250,14 @@ def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
                         }, OUTPUTS_DIR / "pipeline_state.json")
                         break
                     elif state.get("status") == "stopped_by_user":
+                        logger.info("Pipeline stopped by user at phase %d", phase_num)
                         campaign_data["status"] = "stopped"
                         save_json(campaign_data, INPUTS_DIR / "campaign_brief.json")
                         return
                     time.sleep(5)
 
         # Completed
+        logger.info("Pipeline completed successfully!")
         campaign_data["status"] = "completed"
         save_json(campaign_data, INPUTS_DIR / "campaign_brief.json")
         save_json({
@@ -206,15 +269,20 @@ def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
         }, OUTPUTS_DIR / "pipeline_state.json")
 
     except Exception as e:
-        print(f"Pipeline error: {e}")
-        save_json({
-            "status": "error",
-            "error": str(e),
-            "campaign_brief": brief,
-        }, OUTPUTS_DIR / "pipeline_state.json")
+        logger.error("Pipeline fatal error: %s\n%s", e, traceback.format_exc())
+        try:
+            save_json({
+                "status": "error",
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "campaign_brief": brief,
+            }, OUTPUTS_DIR / "pipeline_state.json")
+        except Exception as save_err:
+            logger.error("Could not save error state: %s", save_err)
     finally:
         with _pipeline_lock:
             _pipeline_running = False
+        logger.info("Pipeline thread finished, _pipeline_running set to False")
 
 
 # ── Endpoints ───────────────────────────────────────────
@@ -250,8 +318,16 @@ def start_campaign(req: CampaignRequest):
 
     with _pipeline_lock:
         if _pipeline_running:
-            raise HTTPException(409, "A campaign is already running")
+            # Check if the pipeline is actually stuck (error state but flag still True)
+            state = get_pipeline_state()
+            if state.get("status") in ("error", "idle", "completed", "stopped_by_user"):
+                logger.warning("Pipeline flag was stuck (state=%s), auto-resetting", state.get("status"))
+                _pipeline_running = False
+            else:
+                raise HTTPException(409, "A campaign is already running. Use POST /api/pipeline/reset to force-reset.")
         _pipeline_running = True
+
+    logger.info("Starting campaign: %s", req.brief.strip()[:100])
 
     # Launch pipeline in background thread
     thread = threading.Thread(
@@ -360,6 +436,58 @@ def save_approval(req: ApprovalRequest):
 
     save_json(data, approvals_path)
     return {"status": "saved", "total_decisions": len(data["decisions"])}
+
+
+# -- Debug & Maintenance --
+
+@app.post("/api/pipeline/reset")
+def reset_pipeline():
+    """Force-reset the pipeline state (clears stuck flag)."""
+    global _pipeline_running
+    with _pipeline_lock:
+        was_running = _pipeline_running
+        _pipeline_running = False
+    save_json({"status": "idle", "phase": 0}, OUTPUTS_DIR / "pipeline_state.json")
+    logger.info("Pipeline reset. Was running: %s", was_running)
+    return {"status": "reset", "was_running": was_running}
+
+
+@app.get("/api/debug/env")
+def debug_env():
+    """Check which environment variables are configured (does not expose values)."""
+    keys_to_check = [
+        "ANTHROPIC_API_KEY",
+        "PERPLEXITY_API_KEY",
+        "REPLICATE_API_TOKEN",
+        "META_PAGE_ACCESS_TOKEN",
+        "META_PAGE_ID",
+        "META_IG_USER_ID",
+        "DASHBOARD_URL",
+    ]
+    result = {}
+    for key in keys_to_check:
+        val = os.getenv(key, "")
+        if val:
+            result[key] = f"set ({len(val)} chars, starts with {val[:6]}...)"
+        else:
+            result[key] = "NOT SET"
+    return {
+        "env_status": result,
+        "pipeline_running": _pipeline_running,
+        "pipeline_state": get_pipeline_state(),
+    }
+
+
+@app.get("/api/debug/logs")
+def debug_logs():
+    """Get recent pipeline logs from pipeline_state.json."""
+    state = get_pipeline_state()
+    campaign = get_campaign_brief()
+    return {
+        "pipeline_state": state,
+        "campaign_brief": campaign,
+        "pipeline_running_flag": _pipeline_running,
+    }
 
 
 if __name__ == "__main__":
