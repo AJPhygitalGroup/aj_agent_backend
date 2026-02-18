@@ -1,29 +1,28 @@
 """
-Visual Designer Agent - Genera imágenes para hooks, thumbnails y posts.
-Usa Anthropic API directamente con tool_use.
+Visual Designer Agent - Genera imagenes para hooks, thumbnails y posts.
+Usa Replicate API (Flux model) para generacion de imagenes.
 """
 
-import json
 import os
 
 import httpx
+import replicate
 
 from agents.base import BaseAgent
-from utils.api_clients import get_flux_headers
 from utils.helpers import get_project_root
 
 
 class VisualDesignerAgent(BaseAgent):
     name = "visual_designer"
-    description = "Genera imágenes de hooks, thumbnails y posts con Flux API"
+    description = "Genera imagenes de hooks, thumbnails y posts con Replicate (Flux)"
     max_turns = 25
 
     def get_tools(self) -> list[dict]:
-        """Agrega tool de generación de imágenes con Flux."""
+        """Agrega tool de generacion de imagenes."""
         tools = self._common_tools()
         tools.append({
-            "name": "generate_image_flux",
-            "description": "Generate an image using the Flux API. Provide a detailed prompt describing the image.",
+            "name": "generate_image",
+            "description": "Generate an image using Flux via Replicate. Provide a detailed prompt in English.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -38,72 +37,67 @@ class VisualDesignerAgent(BaseAgent):
         return tools
 
     def handle_custom_tool(self, tool_name: str, tool_input: dict) -> str:
-        if tool_name == "generate_image_flux":
+        if tool_name == "generate_image":
             return self._generate_image(tool_input)
         return f"Unknown tool: {tool_name}"
 
     def _generate_image(self, args: dict) -> str:
-        """Llama a la Flux API para generar una imagen."""
-        headers = get_flux_headers()
-        flux_url = os.getenv("FLUX_API_URL", "https://api.flux.ai/v1")
-
-        if not headers.get("Authorization") or "xxxxx" in headers.get("Authorization", ""):
+        """Genera una imagen usando Flux via Replicate."""
+        api_token = os.getenv("REPLICATE_API_TOKEN", "")
+        if not api_token or "xxxxx" in api_token:
             return (
-                f"[Flux API not configured] Would generate image:\n"
+                f"[Replicate not configured] Would generate image:\n"
                 f"Prompt: {args['prompt'][:200]}\n"
                 f"Size: {args.get('width', 1080)}x{args.get('height', 1080)}\n"
                 f"File: {args['filename']}\n"
-                f"Configure FLUX_API_KEY in .env to enable image generation."
+                f"Configure REPLICATE_API_TOKEN in .env to enable image generation."
             )
-
-        payload = {
-            "prompt": args["prompt"],
-            "width": args.get("width", 1080),
-            "height": args.get("height", 1080),
-        }
 
         output_dir = get_project_root() / "data" / "outputs" / "images"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / args["filename"]
 
         try:
-            response = httpx.post(
-                f"{flux_url}/images/generations",
-                headers=headers,
-                json=payload,
-                timeout=120,
+            output = replicate.run(
+                "black-forest-labs/flux-1.1-pro",
+                input={
+                    "prompt": args["prompt"],
+                    "width": args.get("width", 1080),
+                    "height": args.get("height", 1080),
+                    "output_format": "png",
+                    "prompt_upsampling": True,
+                },
             )
-            response.raise_for_status()
-            result = response.json()
 
-            if "data" in result and result["data"] and "url" in result["data"][0]:
-                img_url = result["data"][0]["url"]
-                img_response = httpx.get(img_url, timeout=60)
-                output_path.write_bytes(img_response.content)
-                return f"Image saved to: {output_path}"
+            # output is a FileOutput URL - download it
+            img_url = str(output)
+            img_response = httpx.get(img_url, timeout=60)
+            img_response.raise_for_status()
+            output_path.write_bytes(img_response.content)
+            self.logger.info(f"Image saved: {output_path}")
+            return f"Image saved to: {output_path}"
 
-            return f"Flux API response: {json.dumps(result)[:500]}"
         except Exception as e:
-            self.logger.error(f"Flux error: {e}")
-            return f"Error generating image: {str(e)}. Make sure FLUX_API_KEY is set in .env"
+            self.logger.error(f"Replicate error: {e}")
+            return f"Error generating image: {str(e)}"
 
     def _build_prompt(self) -> str:
-        return """Genera imágenes para todo el contenido visual de A&J Phygital Group.
+        return """Genera imagenes para todo el contenido visual de A&J Phygital Group.
 
 ## Tu tarea:
 1. Usa `read_agent_output` con agent_name="copywriter" para leer los ContentScripts
 2. Usa `get_brand_guidelines` para leer las brand guidelines
 
-3. Para cada pieza de contenido que requiera imágenes:
-   a. Analiza el hook y tema del guión
-   b. Crea un prompt detallado en INGLÉS para Flux API basado en:
+3. Para cada pieza de contenido que requiera imagenes:
+   a. Analiza el hook y tema del guion
+   b. Crea un prompt detallado en INGLES para Flux basado en:
       - El mensaje del hook
       - Los colores de marca (#667eea azul, #764ba2 morado)
       - Estilo profesional y moderno
-      - Tipografía Inter
-   c. Genera la imagen con `generate_image_flux`
+      - Tipografia Inter
+   c. Genera la imagen con `generate_image`
 
-4. Tipos de imágenes a generar:
+4. Tipos de imagenes a generar:
    - Thumbnails YouTube: 1280x720
    - Hook images reels/TikTok: 1080x1920
    - Post images Instagram: 1080x1080

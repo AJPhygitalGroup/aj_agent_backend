@@ -69,9 +69,23 @@ class OrchestratorAgent(BaseAgent):
             console.print(f"[red]FAIL {agent_name} failed: {e}[/red]")
             return {"agent": agent_name, "status": "error", "error": str(e)}
 
-    def run_pipeline(self, skip_checkpoints: bool = False) -> dict:
+    def run_pipeline(self, skip_checkpoints: bool = False, campaign_brief: str | None = None) -> dict:
         """Ejecuta el pipeline completo fase por fase."""
         self.logger.info("Starting Content Engine Pipeline")
+
+        # Si hay un brief de campaña, guardarlo para que los agentes lo lean
+        if campaign_brief:
+            from datetime import datetime, timezone
+            inputs_dir = self.project_root / "data" / "inputs"
+            inputs_dir.mkdir(parents=True, exist_ok=True)
+            save_json({
+                "brief": campaign_brief,
+                "platforms": ["instagram", "tiktok", "linkedin", "youtube", "facebook"],
+                "language": ["es", "en"],
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "status": "running",
+            }, inputs_dir / "campaign_brief.json")
+
         console.print(Panel(
             "[bold]A&J Phygital Group Content Engine[/bold]\nAutomate. Grow. Dominate.",
             style="bold blue",

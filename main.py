@@ -3,13 +3,16 @@ A&J Phygital Group - Content Engine
 Entry point principal del pipeline de generación de contenido.
 
 Uso:
-    python main.py pipeline              # Pipeline completo
-    python main.py agent trend_researcher  # Un agente específico
-    python main.py phase 1               # Una fase específica
-    python main.py status                # Estado del pipeline
+    python main.py pipeline                          # Pipeline completo
+    python main.py campaign "brief de campaña"       # Lanzar campaña con brief
+    python main.py agent trend_researcher            # Un agente específico
+    python main.py phase 1                           # Una fase específica
+    python main.py status                            # Estado del pipeline
 """
 
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Asegurar que el directorio raíz esté en el path
@@ -19,6 +22,8 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+from utils.helpers import get_project_root, save_json
 
 app = typer.Typer(help="A&J Phygital Group Content Engine")
 console = Console()
@@ -90,6 +95,91 @@ def pipeline():
                 return
 
     console.print(Panel("[bold green]Pipeline completado![/bold green]", style="green"))
+
+
+@app.command()
+def campaign(
+    brief: str = typer.Argument(help="Brief de la campaña (ej: 'campaña para restaurantes')"),
+    platforms: str = typer.Option("instagram,tiktok,linkedin,youtube,facebook", help="Plataformas separadas por coma"),
+    language: str = typer.Option("es,en", help="Idiomas: es, en, o es,en"),
+):
+    """Lanzar una campaña completa a partir de un brief."""
+    # Guardar brief en data/inputs/campaign_brief.json
+    project_root = get_project_root()
+    inputs_dir = project_root / "data" / "inputs"
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+
+    campaign_data = {
+        "brief": brief,
+        "platforms": [p.strip() for p in platforms.split(",")],
+        "language": [l.strip() for l in language.split(",")],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "status": "running",
+    }
+    save_json(campaign_data, inputs_dir / "campaign_brief.json")
+
+    console.print(Panel(
+        f"[bold]Campaña: {brief}[/bold]\n"
+        f"Plataformas: {', '.join(campaign_data['platforms'])}\n"
+        f"Idiomas: {', '.join(campaign_data['language'])}",
+        title="[bold blue]Nueva Campaña[/bold blue]",
+        style="blue",
+    ))
+
+    # Actualizar pipeline_state con info de campaña
+    outputs_dir = project_root / "data" / "outputs"
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    save_json({
+        "status": "running",
+        "phase": 0,
+        "campaign_brief": brief,
+        "started_at": campaign_data["timestamp"],
+    }, outputs_dir / "pipeline_state.json")
+
+    # Ejecutar pipeline fase por fase
+    for phase_num in sorted(PHASES.keys()):
+        phase_info = PHASES[phase_num]
+        console.print(f"\n[bold blue]=== FASE {phase_num}: {phase_info['name']} ===[/bold blue]")
+
+        for agent_name in phase_info["agents"]:
+            _run_agent(agent_name)
+
+        # Actualizar estado
+        save_json({
+            "status": "running",
+            "phase": phase_num,
+            "phase_name": phase_info["name"],
+            "campaign_brief": brief,
+            "started_at": campaign_data["timestamp"],
+        }, outputs_dir / "pipeline_state.json")
+
+        if phase_info.get("checkpoint"):
+            console.print("[yellow]CHECKPOINT: Requiere aprobacion humana.[/yellow]")
+            console.print("[yellow]Revisa y aprueba en el dashboard: http://localhost:3000/approvals[/yellow]")
+            proceed = typer.confirm("¿Aprobar y continuar?")
+            if not proceed:
+                console.print("[red]Pipeline detenido por el usuario.[/red]")
+                campaign_data["status"] = "stopped"
+                save_json(campaign_data, inputs_dir / "campaign_brief.json")
+                save_json({
+                    "status": "stopped_by_user",
+                    "phase": phase_num,
+                    "campaign_brief": brief,
+                }, outputs_dir / "pipeline_state.json")
+                return
+
+    # Marcar como completado
+    campaign_data["status"] = "completed"
+    save_json(campaign_data, inputs_dir / "campaign_brief.json")
+    save_json({
+        "status": "completed",
+        "phase": 7,
+        "campaign_brief": brief,
+        "started_at": campaign_data["timestamp"],
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }, outputs_dir / "pipeline_state.json")
+
+    console.print(Panel("[bold green]Campaña completada![/bold green]", style="green"))
 
 
 @app.command()

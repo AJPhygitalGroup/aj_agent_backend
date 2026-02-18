@@ -171,12 +171,48 @@ class BaseAgent:
             self.logger.error(f"Perplexity error: {e}")
             return f"Search error: {str(e)}"
 
+    # ── Campaign Brief ────────────────────────────────────
+
+    def get_campaign_brief(self) -> dict | None:
+        """Lee el brief de campaña activo desde data/inputs/campaign_brief.json."""
+        brief_path = self.project_root / "data" / "inputs" / "campaign_brief.json"
+        if brief_path.exists():
+            try:
+                return load_json(brief_path)
+            except Exception:
+                return None
+        return None
+
+    def _inject_campaign_context(self, prompt: str) -> str:
+        """Si hay un campaign brief activo, lo inyecta como contexto adicional al prompt."""
+        brief = self.get_campaign_brief()
+        if not brief or brief.get("status") not in ("running", None):
+            return prompt
+
+        campaign_context = f"""
+## CAMPAIGN BRIEF (CONTEXTO DE LA CAMPAÑA ACTIVA)
+El usuario ha solicitado la siguiente campaña. ADAPTA todo tu trabajo a este brief:
+
+**Brief:** {brief.get('brief', 'No especificado')}
+**Plataformas objetivo:** {', '.join(brief.get('platforms', []))}
+**Idiomas:** {', '.join(brief.get('language', ['es', 'en']))}
+
+IMPORTANTE: Tu investigación, contenido y recomendaciones deben estar 100% enfocados
+en el brief de campaña anterior. NO uses los keywords por defecto del config.yaml,
+usa el brief como guía principal.
+---
+
+"""
+        return campaign_context + prompt
+
     # ── Agentic Loop ───────────────────────────────────────
 
     def run(self, custom_prompt: str | None = None) -> str:
         """Ejecuta el agente con un agentic loop (tool_use loop)."""
         system_prompt = self.load_prompt()
         user_prompt = custom_prompt or self._build_prompt()
+        # Inyectar contexto de campaña si existe
+        user_prompt = self._inject_campaign_context(user_prompt)
         tools = self.get_tools()
         messages = [{"role": "user", "content": user_prompt}]
 

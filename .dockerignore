@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.git/
+dashboard/
+node_modules/
+logs/*.log
+data/outputs/*
+data/temp/*
+*.md
+tests/
+.claude/
