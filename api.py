@@ -393,6 +393,7 @@ def get_content(content_type: str):
         "scripts": "copywriter",
         "compliance": "brand_guardian",
         "trends": "trend_researcher",
+        "viral": "viral_analyzer",
         "schedule": "scheduler",
         "seo": "seo_hashtag_specialist",
         "images": "visual_designer",
