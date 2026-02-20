@@ -101,7 +101,8 @@ class CampaignRequest(BaseModel):
 class ApprovalRequest(BaseModel):
     checkpoint: str
     item_id: str
-    decision: str  # approved, rejected, revision
+    decision: str = ""  # approved, rejected, revision
+    status: str = ""  # alias — frontend sends 'status' instead of 'decision'
     feedback: str = ""
 
 
@@ -466,10 +467,13 @@ def save_approval(req: ApprovalRequest):
     approvals_path = OUTPUTS_DIR / "approvals.json"
     data = load_json(approvals_path) if approvals_path.exists() else {"decisions": []}
 
+    # Frontend sends 'status', backend model has 'decision' — accept either
+    resolved_decision = req.decision or req.status or "approved"
     data["decisions"].append({
         "checkpoint": req.checkpoint,
         "item_id": req.item_id,
-        "decision": req.decision,
+        "decision": resolved_decision,
+        "status": resolved_decision,
         "feedback": req.feedback,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
@@ -528,6 +532,32 @@ def debug_logs():
         "campaign_brief": campaign,
         "pipeline_running_flag": _pipeline_running,
     }
+
+
+@app.get("/api/debug/files")
+def debug_files():
+    """List all output files in data/outputs/ for debugging."""
+    files = []
+    if OUTPUTS_DIR.exists():
+        for f in sorted(OUTPUTS_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+            files.append({
+                "name": f.name,
+                "size": f.stat().st_size,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime, timezone.utc).isoformat(),
+            })
+    images = []
+    img_dir = OUTPUTS_DIR / "images"
+    if img_dir.exists():
+        for f in sorted(img_dir.iterdir()):
+            if f.is_file():
+                images.append(f.name)
+    carousels_list = []
+    car_dir = OUTPUTS_DIR / "carousels"
+    if car_dir.exists():
+        for f in sorted(car_dir.iterdir()):
+            if f.is_file():
+                carousels_list.append(f.name)
+    return {"output_files": files, "images": images, "carousels": carousels_list}
 
 
 if __name__ == "__main__":
