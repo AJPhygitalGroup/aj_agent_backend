@@ -137,6 +137,7 @@ class BaseAgent:
                 filename = timestamp_filename(self.name, suffix)
                 output_path = self.project_root / "data" / "outputs" / filename
                 save_json(parsed, output_path)
+                self._output_saved = True  # Mark that output was saved
                 self.logger.info(f"Output saved: {output_path}")
                 return f"Output saved to: {output_path}"
 
@@ -218,6 +219,7 @@ usa el brief como guía principal.
 
         self.logger.info(f"Starting agentic loop (max {self.max_turns} turns)")
         final_text = ""
+        self._output_saved = False  # Track whether save_agent_output was called
 
         for turn in range(self.max_turns):
             self.logger.info(f"Turn {turn + 1}/{self.max_turns}")
@@ -262,8 +264,81 @@ usa el brief como guía principal.
 
             messages.append({"role": "user", "content": tool_results})
 
+        # Auto-save fallback: if the LLM never called save_agent_output,
+        # try to extract and save JSON from its final text response.
+        if not self._output_saved and final_text:
+            self.logger.warning(
+                "Agent '%s' finished without calling save_agent_output. "
+                "Attempting auto-save of final response.",
+                self.name,
+            )
+            self._auto_save_output(final_text)
+
         self.logger.info("Agentic loop finished")
         return final_text
+
+    def _auto_save_output(self, text: str) -> None:
+        """Attempt to extract JSON from the agent's final text and save it."""
+        import re
+
+        # Try to find a JSON block in the text (```json ... ``` or raw {})
+        json_data = None
+
+        # 1. Look for ```json ... ``` blocks
+        json_match = re.search(r"```json\s*\n?(.*?)\n?\s*```", text, re.DOTALL)
+        if json_match:
+            try:
+                json_data = json.loads(json_match.group(1))
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # 2. Try the entire text as JSON
+        if json_data is None:
+            try:
+                json_data = json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # 3. Try to find the largest {...} block
+        if json_data is None:
+            brace_match = re.search(r"\{[\s\S]+\}", text)
+            if brace_match:
+                try:
+                    json_data = json.loads(brace_match.group(0))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        # 4. Fallback: save raw text as wrapped JSON
+        if json_data is None:
+            json_data = {"raw_output": text, "auto_saved": True}
+            self.logger.warning("Could not parse JSON from output, saving raw text")
+        else:
+            if isinstance(json_data, dict):
+                json_data["auto_saved"] = True
+
+        try:
+            suffix = self._get_default_suffix()
+            self.save_output(json_data, suffix=suffix)
+            self._output_saved = True
+            self.logger.info("Auto-saved output with suffix '%s'", suffix)
+        except Exception as e:
+            self.logger.error("Auto-save failed: %s", e)
+
+    def _get_default_suffix(self) -> str:
+        """Return a reasonable default suffix based on agent name."""
+        suffix_map = {
+            "trend_researcher": "trend_report",
+            "viral_analyzer": "viral_analysis",
+            "content_planner": "content_plan",
+            "copywriter": "scripts",
+            "visual_designer": "images",
+            "carousel_creator": "carousels",
+            "seo_hashtag_specialist": "seo_optimizations",
+            "brand_guardian": "compliance",
+            "scheduler": "schedule",
+            "engagement_analyst": "engagement_report",
+        }
+        return suffix_map.get(self.name, "output")
 
     def _build_prompt(self) -> str:
         """Override en cada agente."""
