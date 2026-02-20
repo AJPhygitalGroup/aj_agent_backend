@@ -16,6 +16,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Ensure project root is in path
@@ -57,6 +59,31 @@ app.add_middleware(
 PROJECT_ROOT = get_project_root()
 OUTPUTS_DIR = PROJECT_ROOT / "data" / "outputs"
 INPUTS_DIR = PROJECT_ROOT / "data" / "inputs"
+
+
+# ── Image / file serving ──────────────────────────────
+# Mount the outputs directory so the dashboard can load
+# generated images, carousel slides, etc.
+
+@app.get("/api/images/{filename:path}")
+def serve_image(filename: str):
+    """Serve a generated image from data/outputs/images/."""
+    file_path = OUTPUTS_DIR / "images" / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+    media = "image/png" if filename.endswith(".png") else "image/jpeg"
+    return FileResponse(file_path, media_type=media)
+
+
+@app.get("/api/carousels/slides/{filename:path}")
+def serve_carousel_slide(filename: str):
+    """Serve a generated carousel slide from data/outputs/carousels/."""
+    file_path = OUTPUTS_DIR / "carousels" / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Carousel slide not found")
+    media = "image/png" if filename.endswith(".png") else "image/jpeg"
+    return FileResponse(file_path, media_type=media)
+
 
 # Track running pipeline
 _pipeline_lock = threading.Lock()
@@ -407,6 +434,18 @@ def get_content(content_type: str):
     data = get_latest_file(type_map[content_type])
     if not data:
         return {"data": None, "message": f"No {content_type} data found"}
+
+    # Inject image URLs so the dashboard can display them
+    if content_type == "images" and isinstance(data, dict):
+        for img in data.get("images_generated", []):
+            if "filename" in img:
+                img["url"] = f"/api/images/{img['filename']}"
+    elif content_type == "carousels" and isinstance(data, dict):
+        for carousel in data.get("carousels", []):
+            for slide in carousel.get("slides", []):
+                if "filename" in slide:
+                    slide["url"] = f"/api/carousels/slides/{slide['filename']}"
+
     return {"data": data}
 
 
