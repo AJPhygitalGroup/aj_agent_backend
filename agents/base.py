@@ -104,6 +104,15 @@ class BaseAgent:
                     "required": ["query"],
                 },
             },
+            {
+                "name": "list_templates",
+                "description": (
+                    "List uploaded brand templates and assets. "
+                    "Returns available templates (image backgrounds, layouts), logos, and fonts "
+                    "that should be used to maintain brand identity."
+                ),
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
         ]
 
     def handle_tool_call(self, tool_name: str, tool_input: dict) -> str:
@@ -145,6 +154,9 @@ class BaseAgent:
             elif tool_name == "search_perplexity":
                 return self._search_perplexity(tool_input["query"])
 
+            elif tool_name == "list_templates":
+                return self._list_templates()
+
             else:
                 return self.handle_custom_tool(tool_name, tool_input)
 
@@ -172,6 +184,45 @@ class BaseAgent:
         except Exception as e:
             self.logger.error(f"Perplexity error: {e}")
             return f"Search error: {str(e)}"
+
+    def _list_templates(self) -> str:
+        """List available templates, brand assets, and fonts."""
+        result = {"templates": [], "logos": [], "fonts": [], "has_templates": False}
+
+        templates_dir = self.project_root / "data" / "inputs" / "templates"
+        brand_dir = self.project_root / "data" / "brand_assets"
+        fonts_dir = brand_dir / "fonts"
+
+        # Templates
+        if templates_dir.exists():
+            for f in sorted(templates_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".svg"):
+                    result["templates"].append({
+                        "filename": f.name,
+                        "path": str(f),
+                        "type": f.suffix.lower(),
+                    })
+
+        # Brand logos
+        if brand_dir.exists():
+            for f in sorted(brand_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".svg"):
+                    result["logos"].append({
+                        "filename": f.name,
+                        "path": str(f),
+                    })
+
+        # Fonts
+        if fonts_dir.exists():
+            for f in sorted(fonts_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in (".ttf", ".otf"):
+                    result["fonts"].append(f.name)
+
+        result["has_templates"] = len(result["templates"]) > 0
+        result["has_logos"] = len(result["logos"]) > 0
+        result["has_fonts"] = len(result["fonts"]) > 0
+
+        return json.dumps(result, ensure_ascii=False)
 
     # ── Campaign Brief ────────────────────────────────────
 

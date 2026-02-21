@@ -27,6 +27,10 @@ typer>=0.9.0
 # --- API Server ---
 fastapi>=0.110.0
 uvicorn>=0.27.0
+python-multipart>=0.0.6
+
+# --- Image Processing ---
+Pillow>=10.0.0
 
 # --- Utilities ---
 python-dateutil>=2.8.2

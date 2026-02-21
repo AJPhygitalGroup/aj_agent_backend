@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -59,6 +59,9 @@ app.add_middleware(
 PROJECT_ROOT = get_project_root()
 OUTPUTS_DIR = PROJECT_ROOT / "data" / "outputs"
 INPUTS_DIR = PROJECT_ROOT / "data" / "inputs"
+TEMPLATES_DIR = PROJECT_ROOT / "data" / "inputs" / "templates"
+BRAND_ASSETS_DIR = PROJECT_ROOT / "data" / "brand_assets"
+FONTS_DIR = BRAND_ASSETS_DIR / "fonts"
 
 
 # ── Image / file serving ──────────────────────────────
@@ -558,6 +561,130 @@ def debug_files():
             if f.is_file():
                 carousels_list.append(f.name)
     return {"output_files": files, "images": images, "carousels": carousels_list}
+
+
+# ── Templates & Brand Assets ───────────────────────────
+
+@app.get("/api/templates")
+def list_templates():
+    """List all uploaded templates (images, carousels, logos, fonts)."""
+    result = {"templates": [], "brand_assets": [], "fonts": []}
+
+    # Templates
+    TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    for f in sorted(TEMPLATES_DIR.iterdir()):
+        if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".svg", ".psd"):
+            result["templates"].append({
+                "name": f.name,
+                "size": f.stat().st_size,
+                "type": f.suffix.lower(),
+                "url": f"/api/templates/file/{f.name}",
+                "modified": datetime.fromtimestamp(f.stat().st_mtime, timezone.utc).isoformat(),
+            })
+
+    # Brand assets (logos, etc.)
+    BRAND_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    for f in sorted(BRAND_ASSETS_DIR.iterdir()):
+        if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg", ".svg"):
+            result["brand_assets"].append({
+                "name": f.name,
+                "size": f.stat().st_size,
+                "type": f.suffix.lower(),
+                "url": f"/api/brand-assets/{f.name}",
+            })
+
+    # Fonts
+    FONTS_DIR.mkdir(parents=True, exist_ok=True)
+    for f in sorted(FONTS_DIR.iterdir()):
+        if f.is_file() and f.suffix.lower() in (".ttf", ".otf", ".woff", ".woff2"):
+            result["fonts"].append({
+                "name": f.name,
+                "size": f.stat().st_size,
+            })
+
+    return result
+
+
+@app.post("/api/templates/upload")
+async def upload_template(
+    file: UploadFile = File(...),
+    category: str = Form("template"),  # "template", "logo", "font"
+):
+    """Upload a template image, logo, or font file."""
+    if not file.filename:
+        raise HTTPException(400, "No filename provided")
+
+    ext = Path(file.filename).suffix.lower()
+
+    # Determine destination
+    if category == "font":
+        if ext not in (".ttf", ".otf", ".woff", ".woff2"):
+            raise HTTPException(400, f"Invalid font format: {ext}. Use .ttf, .otf, .woff, or .woff2")
+        dest_dir = FONTS_DIR
+    elif category == "logo":
+        if ext not in (".png", ".jpg", ".jpeg", ".svg"):
+            raise HTTPException(400, f"Invalid image format: {ext}. Use .png, .jpg, or .svg")
+        dest_dir = BRAND_ASSETS_DIR
+    else:  # template
+        if ext not in (".png", ".jpg", ".jpeg", ".svg", ".psd"):
+            raise HTTPException(400, f"Invalid format: {ext}. Use .png, .jpg, .svg, or .psd")
+        dest_dir = TEMPLATES_DIR
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / file.filename
+
+    # Save file
+    content = await file.read()
+    dest_path.write_bytes(content)
+
+    logger.info("Uploaded %s to %s (%d bytes)", file.filename, category, len(content))
+
+    return {
+        "status": "uploaded",
+        "filename": file.filename,
+        "category": category,
+        "size": len(content),
+        "path": str(dest_path.relative_to(PROJECT_ROOT)),
+    }
+
+
+@app.delete("/api/templates/{filename}")
+def delete_template(filename: str, category: str = "template"):
+    """Delete a template, logo, or font file."""
+    if category == "font":
+        file_path = FONTS_DIR / filename
+    elif category == "logo":
+        file_path = BRAND_ASSETS_DIR / filename
+    else:
+        file_path = TEMPLATES_DIR / filename
+
+    if not file_path.exists():
+        raise HTTPException(404, f"File not found: {filename}")
+
+    file_path.unlink()
+    return {"status": "deleted", "filename": filename}
+
+
+@app.get("/api/templates/file/{filename:path}")
+def serve_template(filename: str):
+    """Serve a template file."""
+    file_path = TEMPLATES_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(404, "Template not found")
+    ext = file_path.suffix.lower()
+    media_types = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml"}
+    return FileResponse(file_path, media_type=media_types.get(ext, "application/octet-stream"))
+
+
+@app.get("/api/brand-assets/{filename:path}")
+def serve_brand_asset(filename: str):
+    """Serve a brand asset (logo, etc.)."""
+    file_path = BRAND_ASSETS_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(404, "Brand asset not found")
+    ext = file_path.suffix.lower()
+    media_types = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml"}
+    return FileResponse(file_path, media_type=media_types.get(ext, "application/octet-stream"))
 
 
 if __name__ == "__main__":

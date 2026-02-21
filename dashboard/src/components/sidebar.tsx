@@ -2,11 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Rocket, CheckCircle, BarChart3, ExternalLink } from 'lucide-react'
+import { Rocket, Search, Calendar, FileText, CheckCircle, BarChart3, Palette, ExternalLink } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Campaigns', icon: Rocket },
+  { href: '/research', label: 'Research', icon: Search },
+  { href: '/content-plan', label: 'Content Plan', icon: Calendar },
+  { href: '/content', label: 'Content', icon: FileText },
   { href: '/approvals', label: 'Approvals', icon: CheckCircle },
+  { href: '/brand-templates', label: 'Brand & Templates', icon: Palette },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
 ]
 
