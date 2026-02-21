@@ -92,6 +92,40 @@ def serve_carousel_slide(filename: str):
 _pipeline_lock = threading.Lock()
 _pipeline_running = False
 
+# Track running individual agents
+_agent_lock = threading.Lock()
+_running_agents: dict[str, dict] = {}  # {agent_name: {status, started_at, error?}}
+
+# Global agent registry (used by both pipeline and individual runs)
+AGENT_REGISTRY = {
+    "trend_researcher": ("agents.trend_researcher.agent", "TrendResearcherAgent"),
+    "viral_analyzer": ("agents.viral_analyzer.agent", "ViralAnalyzerAgent"),
+    "content_planner": ("agents.content_planner.agent", "ContentPlannerAgent"),
+    "copywriter": ("agents.copywriter.agent", "CopywriterAgent"),
+    "seo_hashtag_specialist": ("agents.seo_hashtag_specialist.agent", "SEOHashtagSpecialistAgent"),
+    "visual_designer": ("agents.visual_designer.agent", "VisualDesignerAgent"),
+    "carousel_creator": ("agents.carousel_creator.agent", "CarouselCreatorAgent"),
+    "avatar_video_producer": ("agents.avatar_video_producer.agent", "AvatarVideoProducerAgent"),
+    "brand_guardian": ("agents.brand_guardian.agent", "BrandGuardianAgent"),
+    "scheduler": ("agents.scheduler.agent", "SchedulerAgent"),
+    "engagement_analyst": ("agents.engagement_analyst.agent", "EngagementAnalystAgent"),
+}
+
+# Human-readable agent info for the dashboard
+AGENT_INFO = {
+    "trend_researcher": {"label": "Trend Researcher", "description": "Investiga tendencias en redes sociales y Google", "phase": 1, "icon": "search"},
+    "viral_analyzer": {"label": "Viral Analyzer", "description": "Analiza contenido viral y extrae patrones", "phase": 1, "icon": "trending"},
+    "content_planner": {"label": "Content Planner", "description": "Genera el plan de contenido semanal", "phase": 2, "icon": "calendar"},
+    "copywriter": {"label": "Copywriter", "description": "Escribe guiones, captions y CTAs", "phase": 3, "icon": "edit"},
+    "seo_hashtag_specialist": {"label": "SEO & Hashtags", "description": "Optimiza SEO, hashtags y keywords", "phase": 3, "icon": "hash"},
+    "visual_designer": {"label": "Visual Designer", "description": "Genera imagenes para hooks y thumbnails", "phase": 4, "icon": "image"},
+    "carousel_creator": {"label": "Carousel Creator", "description": "Crea carruseles para IG y LinkedIn", "phase": 4, "icon": "layers"},
+    "avatar_video_producer": {"label": "Avatar Video", "description": "Genera videos con avatar IA (HeyGen)", "phase": 4, "icon": "video"},
+    "brand_guardian": {"label": "Brand Guardian", "description": "Valida que el contenido cumpla con la marca", "phase": 5, "icon": "shield"},
+    "scheduler": {"label": "Scheduler", "description": "Programa publicaciones en redes sociales", "phase": 6, "icon": "clock"},
+    "engagement_analyst": {"label": "Engagement Analyst", "description": "Analiza metricas post-publicacion", "phase": 7, "icon": "chart"},
+}
+
 
 # ── Models ──────────────────────────────────────────────
 
@@ -99,6 +133,11 @@ class CampaignRequest(BaseModel):
     brief: str
     platforms: list[str] = ["instagram", "tiktok", "linkedin", "youtube", "facebook"]
     language: list[str] = ["es", "en"]
+
+
+class AgentRunRequest(BaseModel):
+    agent_name: str
+    custom_prompt: str = ""  # optional: override the agent's default prompt
 
 
 class ApprovalRequest(BaseModel):
@@ -178,20 +217,6 @@ def _run_pipeline_thread(brief: str, platforms: list[str], language: list[str]):
         with _pipeline_lock:
             _pipeline_running = False
         return
-
-    AGENT_REGISTRY = {
-        "trend_researcher": ("agents.trend_researcher.agent", "TrendResearcherAgent"),
-        "viral_analyzer": ("agents.viral_analyzer.agent", "ViralAnalyzerAgent"),
-        "content_planner": ("agents.content_planner.agent", "ContentPlannerAgent"),
-        "copywriter": ("agents.copywriter.agent", "CopywriterAgent"),
-        "seo_hashtag_specialist": ("agents.seo_hashtag_specialist.agent", "SEOHashtagSpecialistAgent"),
-        "visual_designer": ("agents.visual_designer.agent", "VisualDesignerAgent"),
-        "carousel_creator": ("agents.carousel_creator.agent", "CarouselCreatorAgent"),
-        "avatar_video_producer": ("agents.avatar_video_producer.agent", "AvatarVideoProducerAgent"),
-        "brand_guardian": ("agents.brand_guardian.agent", "BrandGuardianAgent"),
-        "scheduler": ("agents.scheduler.agent", "SchedulerAgent"),
-        "engagement_analyst": ("agents.engagement_analyst.agent", "EngagementAnalystAgent"),
-    }
 
     try:
         # Save campaign brief
@@ -412,6 +437,116 @@ def get_pipeline():
         }
 
     return {"pipeline": pipeline, "trends": trend_summary}
+
+
+# -- Individual Agent Execution --
+
+@app.get("/api/agents")
+def list_agents():
+    """List all available agents with their info and running status."""
+    agents = []
+    for name, info in AGENT_INFO.items():
+        with _agent_lock:
+            run_status = _running_agents.get(name)
+        agents.append({
+            "name": name,
+            "label": info["label"],
+            "description": info["description"],
+            "phase": info["phase"],
+            "icon": info["icon"],
+            "is_running": run_status is not None and run_status.get("status") == "running",
+            "last_run": run_status,
+        })
+    return {"agents": agents}
+
+
+@app.post("/api/agents/run")
+def run_single_agent(req: AgentRunRequest):
+    """Run a single agent independently (not as part of the pipeline)."""
+    import importlib
+
+    agent_name = req.agent_name
+    if agent_name not in AGENT_REGISTRY:
+        raise HTTPException(400, f"Unknown agent: {agent_name}. Available: {', '.join(AGENT_REGISTRY.keys())}")
+
+    # Check if already running
+    with _agent_lock:
+        existing = _running_agents.get(agent_name)
+        if existing and existing.get("status") == "running":
+            raise HTTPException(409, f"Agent {agent_name} is already running")
+
+    # Check env
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        raise HTTPException(400, "ANTHROPIC_API_KEY not configured")
+
+    # Mark as running
+    with _agent_lock:
+        _running_agents[agent_name] = {
+            "status": "running",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "custom_prompt": bool(req.custom_prompt),
+        }
+
+    def _run_agent():
+        try:
+            module_path, class_name = AGENT_REGISTRY[agent_name]
+            module = importlib.import_module(module_path)
+            agent_class = getattr(module, class_name)
+            agent_instance = agent_class()
+
+            logger.info("Running individual agent: %s (custom_prompt=%s)", agent_name, bool(req.custom_prompt))
+
+            if req.custom_prompt:
+                result = agent_instance.run(custom_prompt=req.custom_prompt)
+            else:
+                result = agent_instance.run()
+
+            logger.info("Agent %s completed. Result length: %d", agent_name, len(result) if result else 0)
+
+            with _agent_lock:
+                _running_agents[agent_name] = {
+                    "status": "completed",
+                    "started_at": _running_agents[agent_name]["started_at"],
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "result_length": len(result) if result else 0,
+                }
+
+        except Exception as e:
+            logger.error("Agent %s failed: %s\n%s", agent_name, e, traceback.format_exc())
+            with _agent_lock:
+                _running_agents[agent_name] = {
+                    "status": "error",
+                    "started_at": _running_agents.get(agent_name, {}).get("started_at", ""),
+                    "error": str(e),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                }
+
+    thread = threading.Thread(target=_run_agent, daemon=True)
+    thread.start()
+
+    return {
+        "status": "started",
+        "agent": agent_name,
+        "label": AGENT_INFO.get(agent_name, {}).get("label", agent_name),
+        "message": f"Agent {agent_name} is now running in the background.",
+    }
+
+
+@app.get("/api/agents/status")
+def get_agents_status():
+    """Get the status of all agents (running, completed, error)."""
+    with _agent_lock:
+        return {"agents": dict(_running_agents)}
+
+
+@app.get("/api/agents/status/{agent_name}")
+def get_agent_status(agent_name: str):
+    """Get the status of a specific agent."""
+    with _agent_lock:
+        status = _running_agents.get(agent_name)
+    if not status:
+        return {"agent": agent_name, "status": "idle"}
+    return {"agent": agent_name, **status}
 
 
 # -- Content --
