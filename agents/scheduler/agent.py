@@ -13,7 +13,7 @@ from agents.base import BaseAgent
 class SchedulerAgent(BaseAgent):
     name = "scheduler"
     description = "Programa publicaciones en todas las redes sociales"
-    max_turns = 25
+    max_turns = 12  # Haiku: read plan + schedule posts
 
     def get_tools(self) -> list[dict]:
         """Agrega tools de scheduling por plataforma."""

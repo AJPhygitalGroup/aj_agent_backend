@@ -9,7 +9,7 @@ from agents.base import BaseAgent
 class EngagementAnalystAgent(BaseAgent):
     name = "engagement_analyst"
     description = "Analiza métricas de engagement y genera insights accionables"
-    max_turns = 20
+    max_turns = 10  # Haiku: read metrics + generate report
 
     def _build_prompt(self) -> str:
         return """Analiza las métricas de engagement post-publicación para A&J Phygital Group.

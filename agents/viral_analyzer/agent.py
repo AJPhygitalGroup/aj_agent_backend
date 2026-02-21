@@ -9,7 +9,8 @@ from agents.base import BaseAgent
 class ViralAnalyzerAgent(BaseAgent):
     name = "viral_analyzer"
     description = "Analiza estructura, tono, música y guión de contenido viral"
-    max_turns = 20
+    model = "claude-sonnet-4-20250514"  # Needs deep narrative analysis
+    max_turns = 12
 
     def _build_prompt(self) -> str:
         return """Analiza la estructura de contenido viral en el nicho de A&J Phygital Group.

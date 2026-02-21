@@ -9,7 +9,7 @@ from agents.base import BaseAgent
 class SEOHashtagSpecialistAgent(BaseAgent):
     name = "seo_hashtag_specialist"
     description = "Optimiza SEO, hashtags y keywords para máximo alcance orgánico"
-    max_turns = 25
+    max_turns = 12  # Haiku: read scripts + generate hashtags/keywords
 
     def _build_prompt(self) -> str:
         return """Optimiza SEO, hashtags y keywords para todo el contenido de A&J Phygital Group.

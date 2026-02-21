@@ -9,7 +9,8 @@ from agents.base import BaseAgent
 class CopywriterAgent(BaseAgent):
     name = "copywriter"
     description = "Escribe guiones para podcast, reels, TikTok, YouTube, LinkedIn y descripciones"
-    max_turns = 30  # Más turns porque genera mucho contenido
+    model = "claude-sonnet-4-20250514"  # Needs creative writing quality
+    max_turns = 20
 
     def _build_prompt(self) -> str:
         return """Escribe todos los guiones y textos para el plan de contenido de A&J Phygital Group.

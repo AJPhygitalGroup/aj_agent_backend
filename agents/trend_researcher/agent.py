@@ -12,7 +12,7 @@ from agents.base import BaseAgent
 class TrendResearcherAgent(BaseAgent):
     name = "trend_researcher"
     description = "Investiga tendencias en redes sociales y Google"
-    max_turns = 20
+    max_turns = 12  # Haiku: search Perplexity + structure output
 
     def _build_prompt(self) -> str:
         return """Investiga las tendencias actuales en redes sociales y Google para A&J Phygital Group.

@@ -15,7 +15,7 @@ from utils.helpers import get_project_root
 class CarouselCreatorAgent(BaseAgent):
     name = "carousel_creator"
     description = "Crea carruseles visuales para Instagram y LinkedIn"
-    max_turns = 25
+    max_turns = 15  # Haiku: builds prompts for Flux, doesn't need Sonnet
 
     def get_tools(self) -> list[dict]:
         """Agrega tool de generacion de imagenes para slides."""

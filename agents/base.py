@@ -32,7 +32,8 @@ class BaseAgent:
 
     name: str = "base"
     description: str = ""
-    model: str = "claude-sonnet-4-20250514"
+    # Default model — agents can override. Use Haiku for simple tasks, Sonnet for creative.
+    model: str = "claude-haiku-4-20250514"
     max_turns: int = 25
 
     def __init__(self):

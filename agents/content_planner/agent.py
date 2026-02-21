@@ -9,7 +9,8 @@ from agents.base import BaseAgent
 class ContentPlannerAgent(BaseAgent):
     name = "content_planner"
     description = "Genera plan de contenido semanal y lo exporta a Google Sheets"
-    max_turns = 25
+    model = "claude-sonnet-4-20250514"  # Needs creative reasoning for strategic planning
+    max_turns = 15
 
     def _build_prompt(self) -> str:
         return """Genera un plan de contenido semanal completo para A&J Phygital Group.

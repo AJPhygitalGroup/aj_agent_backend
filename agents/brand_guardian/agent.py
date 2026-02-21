@@ -9,7 +9,7 @@ from agents.base import BaseAgent
 class BrandGuardianAgent(BaseAgent):
     name = "brand_guardian"
     description = "Valida compliance de todo el contenido con las brand guidelines"
-    max_turns = 25
+    max_turns = 10  # Haiku: read content + check against brand guidelines
 
     def _build_prompt(self) -> str:
         return """Valida que TODO el contenido generado cumpla con las brand guidelines de A&J Phygital Group.
