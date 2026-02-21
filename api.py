@@ -563,6 +563,82 @@ def debug_files():
     return {"output_files": files, "images": images, "carousels": carousels_list}
 
 
+# ── Image Regeneration ─────────────────────────────────
+
+class RegenerateImageRequest(BaseModel):
+    filename: str  # existing filename to replace
+    prompt: str  # custom prompt for Flux (visual only, no text)
+    width: int = 1080
+    height: int = 1080
+    text_overlays: list[dict] = []  # optional: [{text, position, font_size, color}]
+    target: str = "images"  # "images" or "carousels"
+
+
+@app.post("/api/images/regenerate")
+def regenerate_image(req: RegenerateImageRequest):
+    """Regenerate a single image with a custom prompt via Flux + optional text overlay."""
+    import threading
+
+    api_token = os.getenv("REPLICATE_API_TOKEN", "")
+    if not api_token or "xxxxx" in api_token:
+        raise HTTPException(400, "REPLICATE_API_TOKEN not configured")
+
+    if len(req.prompt.strip()) < 5:
+        raise HTTPException(400, "Prompt must be at least 5 characters")
+
+    # Determine output dir
+    if req.target == "carousels":
+        output_dir = OUTPUTS_DIR / "carousels"
+    else:
+        output_dir = OUTPUTS_DIR / "images"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / req.filename
+
+    def _regen():
+        import httpx
+        import replicate
+        try:
+            logger.info("Regenerating image: %s with prompt: %s", req.filename, req.prompt[:100])
+            output = replicate.run(
+                "black-forest-labs/flux-1.1-pro",
+                input={
+                    "prompt": req.prompt,
+                    "width": req.width,
+                    "height": req.height,
+                    "output_format": "png",
+                    "prompt_upsampling": True,
+                },
+            )
+            img_url = str(output)
+            img_response = httpx.get(img_url, timeout=60)
+            img_response.raise_for_status()
+            output_path.write_bytes(img_response.content)
+            logger.info("Image regenerated: %s", output_path)
+
+            # Apply text overlays if provided
+            if req.text_overlays:
+                try:
+                    from utils.image_text import add_text_overlay
+                    add_text_overlay(str(output_path), req.text_overlays)
+                    logger.info("Text overlay applied to regenerated image: %s", req.filename)
+                except Exception as te:
+                    logger.error("Text overlay failed on regen: %s", te)
+
+        except Exception as e:
+            logger.error("Regeneration failed for %s: %s", req.filename, e)
+
+    # Run in background thread so the API responds immediately
+    thread = threading.Thread(target=_regen, daemon=True)
+    thread.start()
+
+    return {
+        "status": "regenerating",
+        "filename": req.filename,
+        "prompt": req.prompt[:200],
+        "message": "Image is being regenerated. Refresh in a few seconds to see the result.",
+    }
+
+
 # ── Templates & Brand Assets ───────────────────────────
 
 @app.get("/api/templates")
